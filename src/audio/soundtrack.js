@@ -5,12 +5,18 @@
 // atténuation sous les voix, iOS compris) ; en file://, le graphe rendrait du silence
 // (restriction d'origine) : on règle alors directement le volume de l'élément.
 
-const FILES = { title: 'title', table: 'table', multiball: 'multiball', hangar: 'hangar', reactor: 'reactor', defense: 'defense', duel: 'duel', gameover: 'gameover' };
+const FILES = {
+  title: 'title', table: 'table', multiball: 'multiball', frenzy: 'frenzy', hangar: 'hangar', reactor: 'reactor',
+  graffiti: 'graffiti', defense: 'defense', vault: 'vault', arena: 'arena', duel: 'duel', gameover: 'gameover',
+};
 const FADE = 1.1;          // durée des fondus enchaînés (s)
 const LOOP_DIP = 1.4;      // creux de volume autour du point de bouclage (s)
 const TRACK_GAIN = 0.85;   // niveau global des pistes face aux effets
 // égalisation mesurée (RMS ramené à environ -17,5 dB)
-const NORM = { title: 1, table: 0.97, multiball: 0.9, hangar: 0.93, reactor: 0.88, defense: 1.05, duel: 1.15, gameover: 0.87 };
+const NORM = {
+  title: 1, table: 0.97, multiball: 0.9, frenzy: 0.99, hangar: 0.93, reactor: 0.84, graffiti: 1.03,
+  defense: 1.05, vault: 0.76, arena: 1.01, duel: 1.15, gameover: 0.87,
+};
 
 export class Soundtrack {
   constructor(A) {

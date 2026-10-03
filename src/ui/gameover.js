@@ -1,3 +1,4 @@
+import { MINI_SECTORS } from '../config.js';
 import { fmt } from '../util/math.js';
 import { load } from '../util/storage.js';
 
@@ -109,11 +110,11 @@ export class GameOverSeq {
     this.scoreStr = null;
     this._setScore(0);
     const st = d.stats || {}, sec = d.sectors || {};
-    const done = ['hangar', 'reactor', 'defense'].filter(k => sec[k] && sec[k].done).length;
+    const done = MINI_SECTORS.filter(k => sec[k] && sec[k].done).length;
     const n = (v) => fmt(v);
     this.rows = [
       ['Niveau de sécurité', d.level || 1, n],
-      ['Secteurs réactivés', done, (v) => `${v} / 3`],
+      ['Secteurs réactivés', done, (v) => `${v} / ${MINI_SECTORS.length}`],
       ['Minijeux gagnés', st.minigamesWon || 0, (v) => `${v} / ${st.minigamesPlayed || 0}`],
       ['Victoires sur NULL', st.bossWins || 0, n],
       ['Jackpots', st.jackpots || 0, (v) => n(v) + (st.superJackpots ? ` + ${st.superJackpots} super` : '')],

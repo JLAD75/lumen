@@ -190,7 +190,7 @@ export class Backdrop {
     const R = Math.max(W, H) * 2.1, pcx = W * 0.58, pcy = H * 0.16 - R;
     g.save();
     g.beginPath(); g.arc(pcx, pcy, R, 0, Math.PI * 2); g.closePath();
-    const body = g.createRadialGradient(pcx, pcy, R - 320 * u, pcx, pcy, R);
+    const body = g.createRadialGradient(pcx, pcy, Math.max(0, R - 320 * u), pcx, pcy, R);
     body.addColorStop(0, '#020310'); body.addColorStop(0.55, '#050a22'); body.addColorStop(0.85, '#0b1d44');
     body.addColorStop(0.96, '#14467a'); body.addColorStop(1, '#3ab0e0');
     g.fillStyle = body; g.fill();
@@ -218,7 +218,7 @@ export class Backdrop {
     g.restore();
     // atmosphère : halo au-delà du limbe, plus vif côté soleil (gauche)
     g.globalCompositeOperation = 'lighter';
-    const at = g.createRadialGradient(pcx, pcy, R - 4 * u, pcx, pcy, R + 110 * u);
+    const at = g.createRadialGradient(pcx, pcy, Math.max(0, R - 4 * u), pcx, pcy, R + 110 * u);
     at.addColorStop(0, 'rgba(90,220,255,0.5)'); at.addColorStop(0.12, 'rgba(70,170,255,0.24)');
     at.addColorStop(0.4, 'rgba(120,80,255,0.08)'); at.addColorStop(1, 'rgba(80,40,200,0)');
     g.fillStyle = at;
@@ -566,6 +566,7 @@ export class Backdrop {
   }
 
   draw(ctx, t, info) {
+    if (this.W < 80 || this.H < 80) return;   // fenêtre minuscule (panneau masqué) : rien à dessiner
     const t0 = performance.now();
     const st = this.settings, rfx = !!st.reducedFx, rm = !!st.reducedMotion;
     if (this.dirty && (!this.L || t0 - this.resizedAt > 160)) this._build();

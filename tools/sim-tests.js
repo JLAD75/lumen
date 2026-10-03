@@ -1,8 +1,8 @@
 // Tests headless (Node) : physique, lanceur, comptabilité des billes, minijeux,
 // transitions, cumul des bonus, multibille, pause.  Usage : node tools/sim-tests.js
 import { Game } from '../src/game/game.js';
-import { RULES, BONUS_RULES } from '../src/config.js';
-import { L } from '../src/game/tableLayout.js';
+import { RULES, BONUS_RULES, SECTORS } from '../src/config.js';
+import { L, T } from '../src/game/tableLayout.js';
 
 const DT = 1 / 120;
 let failures = 0, passes = 0;
@@ -165,7 +165,7 @@ for (let seed = 0; seed < 3; seed++) {
 
 // ------------------------------------------------------------------ 4. minijeux : chute, bouclier, réussite
 log('\n[4] Minijeux : continuité de la bille, chute = retour au plateau sans perte');
-for (const sector of ['hangar', 'reactor', 'defense', 'core']) {
+for (const sector of (process.env.LN_SECTORS || 'hangar,reactor,tag,defense,vault,arena,core').split(',')) {
   log(`  — ${sector}`);
   const { g } = makeGame();
   g.newGame();
@@ -196,6 +196,11 @@ for (const sector of ['hangar', 'reactor', 'defense', 'core']) {
   run(g, 4, () => g.scene === 'table' && !g.transition ? false : undefined);
   check(g.scene === 'table', 'chute sans bouclier : retour au plateau principal');
   check(g.ballsLeft === before, `aucune bille consommée (${before} → ${g.ballsLeft})`);
+  const side = SECTORS[sector].barrel;
+  if (side) {
+    check(t.magnet && t.magnet.ball.id === id && !!t.barrels[side].anim, 'retour : le barillet pivote, l\'aimant de l\'œil retient la bille');
+    run(g, 5, () => t.magnet ? undefined : false);
+  }
   check(t.world.balls.length === 1 && t.world.balls[0].id === id && t.world.balls[0].state === 'free', 'la même bille revient en jeu sur le plateau');
   check(g.bonus.saveT > 0, 'courte protection au retour');
   check(!t.sectors[sector].done, 'secteur non réactivé après une chute');
@@ -219,20 +224,21 @@ log('\n[5] Minijeu : échec au chrono (bille en jeu, bille en attente) et progre
   const { g } = makeGame();
   g.newGame();
   g.table.launch(0.5); run(g, 0.5);
-  g.debug('start', 'reactor');
+  g.debug('start', 'defense');
   run(g, 3, () => g.scene === 'minigame' ? false : undefined);
   const mg = g.minigame;
   const before = g.ballsLeft;
-  mg.round = 1;
+  mg.cleared = 1;
   mg.timeLeft = 0.02;
   run(g, 4, () => g.scene === 'table' ? false : undefined);
+  run(g, 5, () => g.table.magnet ? undefined : false);
   check(g.scene === 'table' && g.table.world.balls.length === 1 && g.table.world.balls[0].state === 'free', 'échec au chrono : la bille revient en jeu sur le plateau');
   check(g.ballsLeft === before, 'aucune bille consommée');
-  check(g.table.sectors.reactor.kept && g.table.sectors.reactor.kept.round === 1, 'progression du secteur mémorisée');
-  g.debug('qualify', 'reactor');
-  g.debug('start', 'reactor');
+  check(g.table.sectors.defense.kept && g.table.sectors.defense.kept.wave === 1, 'progression du secteur mémorisée');
+  g.debug('qualify', 'defense');
+  g.debug('start', 'defense');
   run(g, 3, () => g.scene === 'minigame' ? false : undefined);
-  check(g.minigame && g.minigame.round === 1, 'la tentative suivante reprend la progression');
+  check(g.minigame && g.minigame.cleared === 1, 'la tentative suivante reprend la progression');
 
   // bille en attente de relance (bouclier) quand le chrono expire : elle va au lanceur
   const mg2 = g.minigame;
@@ -261,6 +267,7 @@ log('\n[6] Dernière bille : une chute en minijeu ne termine pas la partie');
   for (const b of mg.world.balls) b.y = 1200;
   run(g, 4, () => g.scene === 'table' ? false : undefined);
   check(g.state === 'play' && g.ballsLeft === 1 && g.table.world.balls.length === 1, 'partie poursuivie sur le plateau, réserve intacte');
+  run(g, 5, () => g.table.magnet ? undefined : false);
   g.bonus.saveT = 0;
   g.debug('drain');
   run(g, 6, () => g.state === 'over' ? false : undefined);
@@ -311,7 +318,7 @@ log('\n[8] Cumul et plafonds des bonus');
   g.scene = 'minigame'; g.bonus.paused = true; B.update(5); g.scene = 'table'; B.paused = false;
   check(B.multT === mt, 'effets de plateau gelés pendant un minijeu');
   for (let i = 0; i < 6; i++) g.awardExtraBall('test');
-  check(g.ballsLeft <= RULES.maxBalls, `réserve plafonnée (${g.ballsLeft} ≤ ${RULES.maxBalls})`);
+  check(g.ballsLeft <= g.maxBalls, `réserve plafonnée (${g.ballsLeft} ≤ ${g.maxBalls})`);
 }
 
 log('\n[9] Pause / reprise');
@@ -368,7 +375,7 @@ log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
     }
   }
   check(hits >= tries * 0.4, `les petits batteurs du pont atteignent cellules ou UPLINK (${hits}/${tries})`);
-  // cellules du pont → réacteur accessible → l'UPLINK lance le minijeu
+  // cellules du pont et UPLINK : un chevron sur chaque face présentée
   {
     const { g } = makeGame();
     g.newGame();
@@ -376,12 +383,10 @@ log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
     t.launch(0.8); run(g, 0.5);
     const b = t.world.balls[0];
     for (let i = 0; i < 4; i++) t.onDeckTarget(i, b, 500, false);
-    check(t.sectorState('reactor') === 'ready', '4 cellules : réacteur accessible');
-    let started = null;
-    g.startMinigame = (sector) => { started = sector; };
+    check(t.chevrons.hangar === 1 && t.chevrons.defense === 1, '4 cellules : un chevron sur chaque barillet');
     b.layer = 2; b.setPos(285, -40); b.vx = 0; b.vy = -400;
-    run(g, 2, () => started ? false : undefined);
-    check(started === 'reactor', 'l\'UPLINK lance le Réacteur');
+    run(g, 2, () => t.uplink.ball ? false : undefined);
+    check(t.chevrons.hangar === 2 && t.chevrons.defense === 2, 'UPLINK : un chevron sur chaque barillet');
   }
   // UPLINK sans mode : retient la bille puis la renvoie sur le pont
   {
@@ -394,7 +399,7 @@ log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
     run(g, 4, () => { if (b.state === 'captured') captured = true; if (captured && b.state === 'free' && b.y > -40) return false; });
     check(captured && b.state === 'free' && b.layer === 2, 'UPLINK : bille retenue puis renvoyée sur le pont');
   }
-  // cibles tombantes → DÉFENSE ; remontée après le minijeu
+  // cibles tombantes → chevron sur la face droite ; remontée automatique
   {
     const { g } = makeGame();
     g.newGame();
@@ -402,9 +407,9 @@ log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
     const b = t.world.balls[0];
     for (let i = 0; i < 3; i++) t.onDrop(i, b, 500, false);
     check(t.drops.every(Boolean) && t.R.drops.every(p => !p.enabled), '3 cibles tombantes abattues (désactivées)');
-    check(t.sectorState('defense') === 'ready', 'DÉFENSE accessible');
-    t.onMinigameEnd('defense', true);
-    check(t.R.drops.every(p => p.enabled), 'cibles relevées après le minijeu');
+    check(t.chevrons.defense === 1, 'cibles tombantes : un chevron sur la face droite (DÉFENSE)');
+    run(g, 1.6);
+    check(t.R.drops.every(p => p.enabled), 'cibles relevées après la banque complète');
   }
   // accès au NOYAU annoncé quand il devient jouable, même s'il était en attente (multibille)
   {
@@ -458,6 +463,159 @@ log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
     let up = false;
     run(g, 1.5, () => { if (b.state === 'free' && b.vy < -1000) up = true; });
     check(up && !t.kickback.lit, 'kickback : bille renvoyée, kickback consommé');
+  }
+}
+
+log('\n[11] Barillets, aimant de l\'œil, vie au million, FURIE, surchauffe des batteurs');
+{
+  // trois passages sur la rampe gauche : HANGAR accessible ; le quatrième lance le minijeu
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    const b = t.world.balls[0];
+    events.length = 0;
+    for (let i = 0; i < 3; i++) { b.layer = 1; t.onDeckRamp(b); t.combo.t = 0; }
+    check(t.chevrons.hangar === 3 && t.sectorState('hangar') === 'ready', '3 passages : HANGAR accessible');
+    check(events.some(e => e.startsWith('banner:HANGAR ACCESSIBLE')), 'accès annoncé');
+    let started = null;
+    g.startMinigame = (s) => { started = s; };
+    b.layer = 1; t.onDeckRamp(b);
+    run(g, 1, () => started ? false : undefined);
+    check(started === 'hangar', '4e passage : la rampe gauche lance le HANGAR');
+  }
+  // face trop utilisée (accès en attente) : le barillet pivote, l'aimant retient la bille
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    const b = t.world.balls[0];
+    g.bonus.deferredMB = 1;                 // accès en attente
+    for (let i = 0; i < 4; i++) { b.state = 'free'; t.onRampExit('R', -1, b); }
+    check(!t.barrels.R.anim && t.barrels.R.uses === 4 && t.sectorState('defense') === 'hold', '4 passages en attente : pas encore de rotation');
+    t.onRampExit('R', -1, b);
+    check(!!t.barrels.R.anim && t.R.rampR.gate.enabled, '5e passage : rotation, volet de la rampe fermé');
+    check(t.magnet && t.magnet.ball === b && b.state === 'captured', 'l\'aimant saisit la bille');
+    run(g, 1);
+    check(t.magnet && t.magnet.phase === 'hold' && Math.hypot(b.x - T.eye.x, b.y - T.eye.y) < 4, 'bille tenue au centre de l\'œil');
+    run(g, 3, () => t.magnet ? undefined : false);
+    check(!t.barrels.R.anim && t.face('R') === 'vault' && !t.R.rampR.gate.enabled, 'face suivante présentée (COFFRE), volet rouvert');
+    check(!t.magnet && b.state === 'free' && b.vy > 0, 'bille relâchée vers les batteurs');
+    check(t.sectorState('defense') === 'armed' && t.chevrons.defense === 3, 'DÉFENSE reste qualifiée (face non présentée)');
+    g.bonus.deferredMB = 0;
+  }
+  // la bille relâchée par l'aimant tombe sur un batteur
+  {
+    let onFlipper = 0;
+    const N = 24;
+    for (let k = 0; k < N; k++) {
+      const { g } = makeGame();
+      g.newGame();
+      const t = g.table;
+      t.launch(0.8); run(g, 0.5);
+      const b = t.world.balls[0];
+      t.grabMagnet(b, 'L');
+      t.magnet.phase = 'hold'; t.magnet.t = 1;
+      t.releaseMagnet();
+      let first = null;
+      const oc = t.world.onContact;
+      t.world.onContact = (bb, p, imp, x, y) => { if (!first && imp > 30) first = p; oc(bb, p, imp, x, y); };
+      run(g, 1.2, () => first ? false : undefined);
+      if (first && first.len && first.side !== undefined) onFlipper++;
+    }
+    check(onFlipper >= N * 0.9, `bille relâchée par l'aimant : premier contact sur un batteur (${onFlipper}/${N})`);
+  }
+  // un million = une vie ; réserve pleine = FURIE
+  {
+    const { g, input } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    g.ballsLeft = 2;
+    events.length = 0;
+    g.score = RULES.lifeEvery - 10; g.addScore(100);
+    run(g, 0.1);
+    check(g.ballsLeft === 3 && events.some(e => e.startsWith('banner:VIE SUPPLÉMENTAIRE')), 'un million : une vie de plus');
+    g.score = 2 * RULES.lifeEvery + 5;
+    let added = 0;
+    const addBall = t.world.addBall.bind(t.world);
+    t.world.addBall = (bb) => { added++; return addBall(bb); };
+    run(g, 0.1);
+    check(g.ballsLeft === 3 && !!g.frenzy, 'réserve pleine : la FURIE démarre');
+    const start = t.ballsInPlay();
+    run(g, 2.4);
+    t.world.addBall = addBall;
+    check(start + added === RULES.frenzyBalls, `${RULES.frenzyBalls} billes lâchées au total (${start} + ${added})`);
+    check(t.multiball && Object.values(t.jackpots).every(Boolean), 'jackpots allumés pendant la FURIE');
+    check(!g.canStartMinigame() && t.minigamesOnHold(), 'minijeux en attente pendant la FURIE');
+    // pas de sauvegarde pendant la FURIE
+    g.bonus.saveT = 5;
+    const before = t.ballsInPlay();
+    const victim = t.world.balls.find(b => b.state === 'free');
+    victim.setPos(281, T.drainY + 5); victim.vy = 300;
+    run(g, 0.05);
+    check(t.ballsInPlay() === before - 1 && t.launchQueue.length === 0, 'bille perdue pendant la FURIE : pas de réinjection');
+    // surchauffe : batteur gauche tenu plus de 3 s (billes figées pour que la FURIE dure)
+    for (const bb of t.world.balls) bb.state = 'captured';
+    input.s.left = true;
+    run(g, RULES.flipperHeat + 0.2);
+    check(t.R.flipL.hot && !t.R.flipL.pressed && t.R.deck.flipL.hot, 'batteur tenu > 3 s : surchauffe, il retombe');
+    run(g, 0.5);
+    check(!t.R.flipL.pressed, 'batteur bloqué tant que la commande reste enfoncée');
+    input.s.left = false; run(g, RULES.flipperCool + 0.1);
+    input.s.left = true; run(g, 0.1);
+    check(t.R.flipL.pressed && !t.R.flipL.hot, 'relâché puis refroidi : le batteur répond de nouveau');
+    input.s.left = false;
+    // réussite : au moins 6 billes à la fin du chrono
+    const F = g.frenzy;
+    check(!!F, 'FURIE toujours en cours');
+    if (F) {
+      for (const b of t.world.balls) { b.state = 'free'; b.setPos(150 + Math.random() * 260, 300 + Math.random() * 100); b.vx = 0; b.vy = 0; }
+      F.t = 0.02;
+      const max = g.maxBalls;
+      run(g, 0.1);
+      check(!g.frenzy && g.maxBalls === max + 1 && g.ballsLeft === max + 1, `FURIE maîtrisée : réserve portée à ${g.maxBalls}, ${g.ballsLeft} vies`);
+      check(events.some(e => e.startsWith('banner:FURIE MAÎTRISÉE')), 'réussite annoncée');
+    }
+    check(t.multiball, 'la multibille continue après la FURIE');
+  }
+  // échec : moins de 6 billes
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    g.score = RULES.lifeEvery + 1;
+    run(g, 2.6);
+    check(!!g.frenzy, 'FURIE lancée');
+    const free = t.world.balls.filter(b => b.state === 'free');
+    for (const b of free.slice(0, free.length - (RULES.frenzyKeep - 1))) t.world.removeBall(b);
+    run(g, 0.1);
+    check(!g.frenzy && g.maxBalls === RULES.startBalls && events.some(e => e.startsWith('banner:FURIE PERDUE')), 'moins de 6 billes : FURIE perdue, réserve inchangée');
+    check(t.multiball && t.ballsInPlay() === RULES.frenzyKeep - 1, 'les billes restantes continuent en multibille');
+  }
+  // hors FURIE : pas de surchauffe
+  {
+    const { g, input } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    input.s.left = true; run(g, 4);
+    check(t.R.flipL.pressed && !t.R.flipL.hot, 'hors FURIE : un batteur peut rester levé');
+    input.s.left = false;
+  }
+  // FURIE en jeu automatique : aucune bille bloquée ni dupliquée
+  {
+    const { g, input } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    g.score = RULES.lifeEvery + 1;
+    let nan = 0;
+    run(g, 20, () => { bot(g, input, 0.85); for (const b of t.world.balls) if (!Number.isFinite(b.x)) nan++; });
+    check(nan === 0 && g.ledgerErrors === 0, `FURIE automatique : comptabilité saine (${t.ballsInPlay()} billes en jeu après 20 s)`);
   }
 }
 

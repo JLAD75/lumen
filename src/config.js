@@ -49,18 +49,35 @@ export const COLORS = {
   steel: '#8fa3c8',
 };
 
-// Les quatre secteurs de la station. Chacun correspond à un minijeu.
+// Les secteurs de la station. Chacun correspond à un minijeu. Les six premiers sont
+// portés par les barillets des rampes (3 faces par rampe) ; le NOYAU est au portail central.
 export const SECTORS = {
-  hangar:  { id: 'hangar',  name: 'HANGAR',   game: 'Casse-briques orbital', color: '#29d9ff', icon: 'brick' },
-  reactor: { id: 'reactor', name: 'RÉACTEUR', game: 'Réacteur instable',     color: '#ffae2a', icon: 'atom' },
-  defense: { id: 'defense', name: 'DÉFENSE',  game: 'Défense de la station', color: '#5dff8f', icon: 'shield' },
+  hangar:  { id: 'hangar',  name: 'HANGAR',   game: 'Casse-briques orbital', color: '#29d9ff', icon: 'brick',  barrel: 'L' },
+  reactor: { id: 'reactor', name: 'RÉACTEUR', game: 'Singularité',           color: '#ffae2a', icon: 'atom',   barrel: 'L' },
+  tag:     { id: 'tag',     name: 'GRAFFITI', game: 'Fresque néon',          color: '#e6ff3d', icon: 'spray',  barrel: 'L' },
+  defense: { id: 'defense', name: 'DÉFENSE',  game: 'Défense de la station', color: '#5dff8f', icon: 'shield', barrel: 'R' },
+  vault:   { id: 'vault',   name: 'COFFRE',   game: 'Braquage du coffre',    color: '#b07bff', icon: 'vault',  barrel: 'R' },
+  arena:   { id: 'arena',   name: 'ARÈNE',    game: 'Cyberball',             color: '#4d7dff', icon: 'goal',   barrel: 'R' },
   core:    { id: 'core',    name: 'NOYAU',    game: 'Duel contre NULL',      color: '#ff3d6e', icon: 'skull' },
 };
 
+// Faces des barillets (rampe gauche → pont, rampe droite → retour), dans l'ordre de rotation.
+export const BARRELS = { L: ['hangar', 'reactor', 'tag'], R: ['defense', 'vault', 'arena'] };
+export const MINI_SECTORS = [...BARRELS.L, ...BARRELS.R];
+
 export const RULES = {
-  startBalls: 3,
-  maxBalls: 5,              // plafond de la réserve (billes supplémentaires)
-  maxActiveBalls: 4,        // plafond de billes simultanées sur le plateau
+  startBalls: 3,            // réserve de départ = réserve maximale (agrandie par la FURIE)
+  maxBallsCap: 9,           // plafond absolu de la réserve
+  maxActiveBalls: 4,        // plafond de billes simultanées sur le plateau (hors FURIE)
+  lifeEvery: 1000000,       // une vie à chaque million de points
+  frenzyBalls: 10,          // FURIE : billes en jeu
+  frenzyKeep: 6,            // billes à conserver jusqu'au bout
+  frenzyTime: 30,           // durée de la FURIE (s)
+  flipperHeat: 3,           // FURIE : batteur levé plus longtemps = surchauffe (s)
+  flipperCool: 1,           // batteur bloqué après surchauffe (s)
+  chevrons: 3,              // passages (ou bonus) pour ouvrir le minijeu d'une face
+  overuse: 5,               // passages sur une même face avant que le barillet pivote
+  coreNeeds: 3,             // secteurs réactivés pour ouvrir le duel contre NULL
   ballSaveByLevel: [8, 6, 5],
   returnProtection: 4,      // protection après retour de minijeu (s)
   comboWindow: 4.0,

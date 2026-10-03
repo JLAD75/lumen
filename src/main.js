@@ -7,6 +7,8 @@ import { Game } from './game/game.js';
 
 // Point d'entrée : assemble entrées, rendu, audio, interface et logique de jeu.
 const settings = loadSettings();
+// ?mute : session silencieuse (tests automatisés), sans toucher aux réglages enregistrés
+if (/[?&]mute/.test(location.search)) settings.muted = true;
 const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas, settings, document.getElementById('bg'), document.getElementById('fx'));
 document.getElementById('app').classList.toggle('rfx', !!settings.reducedFx);

@@ -323,6 +323,8 @@ export class PhysicsWorld {
       if (d2 >= R * R) return;
       const d = Math.sqrt(d2);
       if (d < 1e-6) { nx = 0; ny = -1; } else { nx = dx / d; ny = dy / d; }
+      // bille posée pile au sommet d'un poteau : équilibre instable rompu (sinon elle y reste)
+      if (ny < -0.9995 && Math.abs(b.vx) < 4) { nx = b.x < p.x ? -0.03 : 0.03; ny = -0.99955; }
       pen = R - d;
     } else { // rect
       const qx = b.x < p.x0 ? p.x0 : b.x > p.x1 ? p.x1 : b.x;

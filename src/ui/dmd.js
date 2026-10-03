@@ -565,6 +565,8 @@ const EV = {
   shield:       { pri: 1, dur: 1.7, col: '#7fd7ff', out: 'wipe' },
   ballLost:     { pri: 2, dur: 2.8, col: '#ff5a3c', out: 'dissolve' },
   levelUp:      { pri: 3, dur: 3.0, col: '#ff3d6e', out: 'blinds' },
+  pivot:        { pri: 2, dur: 2.6, col: '#ffb52e', out: 'wipe' },
+  frenzy:       { pri: 4, dur: 3.4, col: '#ff3040', out: 'dissolve' },
   gameOver:     { pri: 5, dur: 4.0, col: null, out: 'none', hold: true },
   banner:       { pri: 2, dur: 2.3, col: null, out: 'blinds' },
   _null:        { pri: 2, dur: 2.6, col: '#ff3d6e', out: 'dissolve' },
@@ -831,6 +833,52 @@ const DRAW = {
       f.clip(0, 0, lerp(0, W, ph(t, 1.9, 2.3)), H);
       f.textC(fmt(e.data.score ?? d.score), 18, F_M, 15, K_BASE);
       f.unclip();
+    }
+  },
+
+  // rotation d'un barillet : prisme vu en bout qui tourne en trois crans, puis « ANCIEN → NOUVEAU »
+  pivot(f, e, t, d) {
+    const m = e.memo;
+    if (!m.to) { m.from = up(e.data.from || ''); m.to = up(e.data.to || ''); }
+    const step = (u) => { let p = 0; for (let k = 0; k < 3; k++) { const v = clamp01((u - k * 0.37) / 0.26); p += eInOut(v) / 3; } return p; };
+    const a = -Math.PI / 2 + step(ph(t, 0.3, 1.9)) * TAU / 3 * (e.data.side === 'L' ? -1 : 1);
+    const cx = 13, cy = 16, r = 11;
+    const P = [0, 1, 2].map(k => [cx + Math.cos(a + k * TAU / 3) * r, cy + Math.sin(a + k * TAU / 3) * r]);
+    for (let k = 0; k < 3; k++) f.line(P[k][0], P[k][1], P[(k + 1) % 3][0], P[(k + 1) % 3][1], 15, K_EV);
+    f.disc(cx, cy, 2, 12, K_HOT);
+    if (t > 0.3 && t < 1.9 && !d.reduced) for (let k = 0; k < 3; k++) if (hash(e.seed + k + Math.floor(t * 20)) > 0.6) f.put(P[k][0] + 1, P[k][1] - 1, 15, K_HOT);
+    f.clip(28, 0, W, H);
+    f.marquee('ROTATION DU BARILLET', 28, 2, W - 28, F_S, 12, K_BASE, t);
+    const p = eOut(ph(t, 1.6, 2.1));
+    f.text(m.from, 30, 13, F_M, Math.round(15 - 9 * p), K_BASE);
+    if (p > 0) {
+      const w = measure(m.to, F_M), x = Math.round(lerp(W + 2, Math.max(30, W - 2 - w), p));
+      f.knock(x - 3, 12, w + 6, 14);
+      f.text(m.to, x, 13, F_M, 15, K_EV);
+    }
+    f.unclip();
+  },
+
+  // FURIE : alarme, « FURIE » qui tremble, pluie de billes
+  frenzy(f, e, t, d) {
+    if (t < 0.7) {
+      const on = d.reduced ? t < 0.1 : Math.floor(t / 0.1) % 2 === 0;
+      if (on) f.fill(d.reduced ? 5 : 12, K_EV);
+      f.textC('ALERTE', 10, F_M, on ? 2 : 15, on ? K_BASE : K_EV);
+      return;
+    }
+    for (let i = 0; i < 10; i++) {
+      const x = 6 + (i * 37) % 118, sp = 34 + (i * 13) % 20, y = ((t - 0.7) * sp + i * 7) % 40 - 5;
+      for (let j = 1; j < 4; j++) f.put(x, y - j * 2, 9 - j * 2, K_EV);
+      f.disc(x, y, 2, 13, K_EV, true);
+    }
+    const sh = d.reduced ? 0 : Math.round(Math.sin(t * 60) * 1.5);
+    const sc = lerp(2.4, 1, eBack(ph(t, 0.7, 1.1)));
+    f.knock(30 + sh, 2, 68, 18);
+    f.textZ('FURIE', 64 + sh, 11, F_M, sc, Math.floor(t * 8) % 2 && !d.reduced ? 12 : 15, K_EV);
+    if (t > 1.4) {
+      f.knock(0, 22, W, 10);
+      f.marquee(up(e.data.sub || ''), 0, 23, W, F_S, 13, K_BASE, t - 1.4);
     }
   },
 

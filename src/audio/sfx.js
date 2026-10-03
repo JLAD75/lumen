@@ -3,6 +3,10 @@
 
 import { SFX_DEFENSE } from './sfx-defense.js';
 import { SFX_BREAKOUT } from './sfx-breakout.js';
+import { SFX_SINGULARITY } from './sfx-singularity.js';
+import { SFX_GRAFFITI } from './sfx-graffiti.js';
+import { SFX_VAULT } from './sfx-vault.js';
+import { SFX_CYBERBALL } from './sfx-cyberball.js';
 
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -448,6 +452,98 @@ export const SFX = {
     osc.start(t); trem.start(t); osc.stop(t + 0.6); trem.stop(t + 0.6);
   },
 
+  // ---------------------------------------------------------------- barillets et aimant
+  chevron(A, n = 1) {
+    const t = A.now, o = A.out(0, null, 0.25);
+    const base = 76 + (n - 1) * 4;
+    for (let k = 0; k < n; k++) A.tone({ type: 'square', f: nf(base + k * 7), t: t + k * 0.06, dur: 0.09, gain: 0.05, filter: 'lowpass', ff: 3200, dest: o });
+    A.tone({ f: nf(base - 24), dur: 0.18, gain: 0.18, dest: o });
+  },
+  barrelWarn(A, pan = 0) {
+    const t = A.now, o = A.out(pan * 0.6, null, 0.2);
+    for (let k = 0; k < 2; k++) A.tone({ type: 'square', f: 1250, t: t + k * 0.16, dur: 0.08, gain: 0.05, filter: 'bandpass', ff: 1400, q: 4, dest: o });
+  },
+  // vérins qui se déverrouillent : choc métallique puis échappement pneumatique
+  barrelUnlock(A, pan = 0) {
+    const t = A.now, o = A.out(pan * 0.7, null, 0.35);
+    A.noise({ f: 2400, q: 6, dur: 0.05, gain: 0.35, dest: o });
+    A.tone({ type: 'triangle', f: 310, f2: 180, dur: 0.12, gain: 0.25, dest: o });
+    A.noise({ f: 5000, f2: 1800, q: 0.7, t: t + 0.06, dur: 0.38, gain: 0.16, filter: 'highpass', dest: o });
+    for (let k = 0; k < 2; k++) A.noise({ f: 3000, q: 8, t: t + 0.22 + k * 0.1, dur: 0.03, gain: 0.25, dest: o });
+  },
+  // servomoteur : gémissement qui monte et descend sur toute la rotation
+  barrelServo(A, pan = 0) {
+    const t = A.now, o = A.out(pan * 0.7, null, 0.2);
+    A.tone({ type: 'sawtooth', f: 70, f2: 150, glide: 0.8, dur: 1.55, gain: 0.06, filter: 'lowpass', ff: 600, ff2: 1400, dest: o });
+    A.tone({ type: 'square', f: 460, f2: 690, glide: 0.8, dur: 1.55, gain: 0.018, filter: 'bandpass', ff: 900, q: 3, dest: o });
+    A.noise({ f: 600, q: 2, dur: 1.55, gain: 0.05, dest: o });
+  },
+  // cran de rotation : cliquet lourd
+  barrelStep(A, pan = 0, n = 1) {
+    const t = A.now, o = A.out(pan * 0.7, null, 0.3);
+    A.noise({ f: 1800 + n * 300, q: 5, dur: 0.04, gain: 0.32, dest: o });
+    A.tone({ f: 120, f2: 60, dur: 0.12, gain: 0.3, dest: o });
+    A.noise({ f: 4200, q: 9, t: t + 0.05, dur: 0.02, gain: 0.18, dest: o });
+  },
+  // verrouillage : grand « clonk » et retombée de pression
+  barrelLock(A, pan = 0) {
+    const t = A.now, o = A.out(pan * 0.7, null, 0.45);
+    A.tone({ f: 85, f2: 42, dur: 0.35, gain: 0.5, dest: o });
+    A.tone({ type: 'triangle', f: 520, f2: 260, dur: 0.18, gain: 0.18, dest: o });
+    A.noise({ f: 1400, q: 3, dur: 0.08, gain: 0.35, dest: o });
+    A.noise({ f: 6000, f2: 2500, q: 0.6, t: t + 0.12, dur: 0.5, gain: 0.09, filter: 'highpass', dest: o });
+  },
+  magnetGrab(A) {
+    const t = A.now, o = A.out(0, null, 0.4);
+    A.tone({ type: 'sawtooth', f: 55, f2: 110, dur: 0.8, gain: 0.12, filter: 'lowpass', ff: 300, ff2: 1600, dest: o });
+    A.tone({ f: 880, f2: 1760, dur: 0.8, gain: 0.04, dest: o });
+    A.noise({ f: 3000, f2: 7000, q: 4, dur: 0.6, gain: 0.05, dest: o });
+  },
+  magnetLock(A) {
+    const t = A.now, o = A.out(0, null, 0.5);
+    A.tone({ f: 60, dur: 0.4, gain: 0.35, dest: o });
+    A.tone({ type: 'square', f: 120, dur: 1.6, gain: 0.025, filter: 'lowpass', ff: 500, a: 0.1, dest: o });
+    A.noise({ f: 2000, q: 2, dur: 0.06, gain: 0.25, dest: o });
+  },
+  magnetRelease(A) {
+    const o = A.out(0, null, 0.3);
+    A.tone({ type: 'sawtooth', f: 220, f2: 60, dur: 0.3, gain: 0.1, filter: 'lowpass', ff: 1200, dest: o });
+    A.noise({ f: 1200, f2: 300, q: 1.5, dur: 0.2, gain: 0.12, dest: o });
+  },
+
+  // ---------------------------------------------------------------- FURIE
+  frenzyStart(A) {
+    const t = A.now, o = A.out(0, null, 0.5);
+    // sirène à deux tons
+    for (let k = 0; k < 6; k++) A.tone({ type: 'sawtooth', f: k % 2 ? 660 : 880, t: t + k * 0.22, dur: 0.22, gain: 0.07, filter: 'lowpass', ff: 2400, dest: o });
+    A.tone({ f: 55, f2: 35, dur: 1.4, gain: 0.45, dest: o });
+    A.noise({ f: 300, f2: 3000, q: 0.8, dur: 1.2, gain: 0.12, dest: o });
+  },
+  frenzyDrop(A, i = 0) {
+    const t = A.now, o = A.out(((i % 3) - 1) * 0.4, null, 0.2);
+    A.tone({ type: 'square', f: nf(64 + (i % 5) * 3), f2: nf(52), dur: 0.12, gain: 0.05, filter: 'lowpass', ff: 2000, dest: o });
+    A.noise({ f: 2500, q: 4, dur: 0.03, gain: 0.15, dest: o });
+  },
+  frenzyWin(A) {
+    const t = A.now, o = A.out(0, null, 0.6);
+    [[67, 71, 74], [69, 72, 76], [71, 74, 79], [72, 76, 84]].forEach((ch, k) => {
+      for (const m of ch) A.tone({ type: 'sawtooth', f: nf(m), t: t + k * 0.14, dur: k === 3 ? 1.3 : 0.16, gain: 0.05, filter: 'lowpass', ff: 3800, dest: o });
+    });
+    A.tone({ f: nf(48), t: t + 0.42, dur: 1.2, gain: 0.3, dest: o });
+  },
+  frenzyFail(A) {
+    const t = A.now, o = A.out(0, null, 0.4);
+    A.tone({ type: 'sawtooth', f: 330, f2: 82, dur: 0.9, gain: 0.08, filter: 'lowpass', ff: 1500, ff2: 300, dest: o });
+    A.tone({ f: 70, f2: 40, dur: 0.6, gain: 0.3, dest: o });
+  },
+  // batteur en surchauffe : grésillement et choc de relâche
+  flipperOverheat(A, side = 0) {
+    const t = A.now, o = A.out(side * 0.5, null, 0.2);
+    A.noise({ f: 4500, f2: 1500, q: 0.8, dur: 0.6, gain: 0.18, filter: 'highpass', dest: o });
+    A.tone({ type: 'square', f: 180, f2: 90, dur: 0.25, gain: 0.08, filter: 'lowpass', ff: 900, dest: o });
+    A.tone({ type: 'square', f: 1700, t: t + 0.05, dur: 0.06, gain: 0.04, dest: o });
+  },
+
   hurry(A) {
     const t = A.now, o = A.out(0);
     for (let k = 0; k < 4; k++) A.tone({ type: 'square', f: 1760, t: t + k * 0.14, dur: 0.03, gain: 0.04, dest: o });
@@ -466,7 +562,7 @@ export const SFX = {
   // ---------------------------------------------------------------- minijeux
   minigameStart(A, sector) {
     const t = A.now, o = A.out(0, null, 0.5);
-    const roots = { hangar: 72, reactor: 62, defense: 64, core: 57 };
+    const roots = { hangar: 72, reactor: 62, tag: 67, defense: 64, vault: 59, arena: 65, core: 57 };
     const r = roots[sector] || 69;
     const iv = sector === 'core' ? [0, 1, 7, 12] : sector === 'hangar' ? [0, 4, 7, 12] : [0, 3, 7, 12];
     iv.forEach((d, k) => A.tone({ type: 'sawtooth', f: nf(r + d), t: t + k * 0.09, dur: 0.35, gain: 0.06, filter: 'lowpass', ff: 2500, dest: o }));
@@ -526,28 +622,6 @@ export const SFX = {
   capsule(A) {
     const t = A.now, o = A.out(0, null, 0.3);
     [76, 81, 86, 91].forEach((m, k) => A.tone({ type: 'square', f: nf(m), t: t + k * 0.045, dur: 0.1, gain: 0.05, filter: 'lowpass', ff: 4000, dest: o }));
-  },
-
-  nodeHit(A, correct, step = 0) {
-    const o = A.out(0, null, 0.4);
-    if (correct) {
-      A.bell({ f: nf(74 + step * 3), dur: 0.6, gain: 0.14, dest: o });
-      A.tone({ f: 120, f2: 60, dur: 0.1, gain: 0.25, dest: o });
-    } else {
-      const ctx = A.ctx;
-      const ws = ctx.createWaveShaper();
-      const curve = new Float32Array(256);
-      for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 6); }
-      ws.curve = curve;
-      ws.connect(o);
-      A.tone({ type: 'sawtooth', f: 110, dur: 0.35, gain: 0.1, dest: ws });
-      A.tone({ type: 'sawtooth', f: 116, dur: 0.35, gain: 0.1, dest: ws });
-    }
-  },
-
-  reactorSeq(A) {
-    const t = A.now, o = A.out(0, null, 0.5);
-    for (const m of [62, 69, 74, 78]) A.tone({ type: 'sawtooth', f: nf(m), t, dur: 0.7, gain: 0.04, filter: 'lowpass', ff: 600, ff2: 4000, fglide: 0.2, dest: o });
   },
 
   alarm(A) {
@@ -635,4 +709,4 @@ export const SFX = {
 };
 
 // sons des minijeux définis dans leurs propres modules
-Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT);
+Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL);

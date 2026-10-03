@@ -10,6 +10,16 @@ export const FONT = '"Rajdhani", "Segoe UI", system-ui, sans-serif';
 export const FONT_D = '"Orbitron", "Rajdhani", "Segoe UI", sans-serif';
 
 const BALL_COLORS = ['#29e3ff', '#ff3df2', '#ffd84a', '#5dff8f'];
+const hexRgb = (h) => { const v = parseInt(h.slice(1), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+// Couleur de chauffe d'un batteur : a (froid) → b (orange) → c (rouge), h de 0 à 1.
+// Quantifiée (sprites de lueur mis en cache par couleur).
+function heatMix(a, b, c, h) {
+  h = Math.round(clamp01(h) * 16) / 16;
+  const [p, q, u] = h < 0.55 ? [a, b, h / 0.55] : [b, c, (h - 0.55) / 0.45];
+  const x = hexRgb(p), y = hexRgb(q);
+  const ch = (i) => Math.round(x[i] + (y[i] - x[i]) * u).toString(16).padStart(2, '0');
+  return '#' + ch(0) + ch(1) + ch(2);
+}
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // Rendu Canvas 2D : caméra monde, calques statiques pré-rendus, scènes, effets.
@@ -132,6 +142,29 @@ export class Renderer {
 
   dropLayer(key) { this.layers.delete(key); }
 
+  // petit calque statique (boîte monde x, y, w, h) : lentilles allumées, faces des barillets…
+  // Même cache que les calques (vidé au redimensionnement et au chargement des polices).
+  sprite(key, x, y, w, h, drawFn) {
+    let l = this.layers.get(key);
+    if (l) return l;
+    const s = this.view.scale * this.dpr * (this.layerBoost || 1);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w * s)); c.height = Math.max(1, Math.ceil(h * s));
+    const g = c.getContext('2d');
+    g.setTransform(s, 0, 0, s, -x * s, -y * s);
+    drawFn(g, this);
+    l = { c, x, y, w: c.width / s, h: c.height / s };
+    this.layers.set(key, l);
+    return l;
+  }
+
+  drawSprite(ctx, sp, a = 1) {
+    if (a <= 0.01) return;
+    ctx.globalAlpha = Math.min(1, a);
+    ctx.drawImage(sp.c, sp.x, sp.y, sp.w, sp.h);
+    ctx.globalAlpha = 1;
+  }
+
   _background() {
     if (this.bg) return this.bg;
     const c = document.createElement('canvas');
@@ -183,6 +216,7 @@ export class Renderer {
   blitLayer(ctx, l) { const B = this.bounds; ctx.drawImage(l, B.x0, B.y0, B.w, B.h); }
 
   render(game) {
+    if (this.canvas.width < 2 || this.canvas.height < 2) return;   // fenêtre réduite à rien
     if (game.table.bounds) this.setBounds(game.table.bounds);
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
@@ -295,11 +329,13 @@ export class Renderer {
   _mood(game) {
     const t = game.table, msg = game.lumen && game.lumen.current;
     let mood = 'calm';
-    if ((msg && msg.persona === 'null') || (game.minigame && game.minigame.sector === 'core')) mood = 'null';
+    // FURIE : la machine s'énerve, la ville passe au rouge (même humeur que NULL)
+    const fury = !!game.frenzy && game.scene === 'table';
+    if (fury || (msg && msg.persona === 'null') || (game.minigame && game.minigame.sector === 'core')) mood = 'null';
     else if (t.multiball || game.bonus.mult >= 3 || t.combo.count >= 4 || (game.minigame && game.minigame.timeLeft < 10)) mood = 'hot';
     if (this.shut && this.shut.red > 0) mood = 'null';
     this.mood = mood;
-    const target = Math.min(1, t.combo.count / 8 + (game.bonus.mult - 1) * 0.15 + (t.multiball ? 0.4 : 0));
+    const target = fury ? 1 : Math.min(1, t.combo.count / 8 + (game.bonus.mult - 1) * 0.15 + (t.multiball ? 0.4 : 0));
     this.intensity += (target - this.intensity) * 0.05;
   }
 
@@ -627,10 +663,20 @@ export class Renderer {
   }
 
   // Batteur : plastique blanc, caoutchouc néon, axe chromé, ombre portée.
+  // FURIE : f.heat (0 → 1, tenu levé) le fait virer à l'orange puis au rouge, avec lueur et
+  // vibration en fin de course ; f.hot (surchauffe) : rouge vif, fumée et étincelles.
+  // Les batteurs des minijeux n'ont pas ces champs.
   drawFlipper(f, color = COLORS.cyan) {
     const ctx = this.ctx;
     const a = lerp(f.prevAngle ?? f.angle, f.angle, this.alpha);
     const L = f.len, r0 = f.r0, r1 = f.r1;
+    const hot = !!f.hot, heat = hot ? 1 : clamp01(f.heat || 0);
+    const rfx = this.settings.reducedFx;
+    let px = f.px, py = f.py;
+    if (heat > 0.6 && !rfx && !this.settings.reducedMotion) {
+      const amp = hot ? 0.6 : (heat - 0.6) / 0.4 * 1.4;
+      px += (Math.random() - 0.5) * amp; py += (Math.random() - 0.5) * amp;
+    }
     const path = new Path2D();
     path.arc(0, 0, r0, Math.PI / 2, -Math.PI / 2);
     path.lineTo(L, -r1);
@@ -638,32 +684,45 @@ export class Renderer {
     path.closePath();
     // ombre
     ctx.save();
-    ctx.translate(f.px + 3, f.py + 5); ctx.rotate(a);
+    ctx.translate(px + 3, py + 5); ctx.rotate(a);
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill(path);
     ctx.restore();
     ctx.save();
-    ctx.translate(f.px, f.py);
+    ctx.translate(px, py);
     ctx.rotate(a);
+    const rubber = heat > 0.02 ? heatMix(color, '#ff8a1c', '#ff2414', heat) : color;
     const lift = f.lift;
-    if (lift > 0.05) {
+    if (lift > 0.05 || heat > 0.05) {
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.2 + 0.3 * lift;
-      ctx.drawImage(glowSprite(color, 64), -20, -40, L + 40, 80);
+      const hk = hot ? 0.55 + 0.25 * Math.sin(this.time * 18) : heat * 0.5;
+      ctx.globalAlpha = Math.min(1, 0.2 * (lift > 0.05) + 0.3 * lift + hk);
+      ctx.drawImage(glowSprite(heat > 0.05 ? rubber : color, 64), -20 - heat * 8, -40 - heat * 10, L + 40 + heat * 16, 80 + heat * 20);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
     const grd = ctx.createLinearGradient(0, -r0, 0, r0);
-    grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.45, '#e3e7ef'); grd.addColorStop(1, '#8d97ab');
+    if (heat > 0.02) {
+      grd.addColorStop(0, heatMix('#ffffff', '#ffe2b8', '#ffb08a', heat));
+      grd.addColorStop(0.45, heatMix('#e3e7ef', '#ff9a4a', '#ff3a1e', heat));
+      grd.addColorStop(1, heatMix('#8d97ab', '#a8461a', '#7a0c06', heat));
+    } else {
+      grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.45, '#e3e7ef'); grd.addColorStop(1, '#8d97ab');
+    }
     ctx.fillStyle = grd;
     ctx.fill(path);
     // caoutchouc coloré
-    ctx.strokeStyle = color; ctx.lineWidth = 3.2; ctx.stroke(path);
+    ctx.strokeStyle = rubber; ctx.lineWidth = 3.2; ctx.stroke(path);
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 0.8;
     ctx.save(); ctx.scale(0.86, 0.8); ctx.stroke(path); ctx.restore();
     // liseré décoratif et reflet
-    ctx.fillStyle = color; ctx.globalAlpha = 0.85;
+    ctx.fillStyle = rubber; ctx.globalAlpha = 0.85;
     ctx.beginPath(); ctx.moveTo(r0 * 0.8, -2); ctx.lineTo(L - r1 * 1.4, -1); ctx.lineTo(L - r1 * 1.4, 1); ctx.lineTo(r0 * 0.8, 2); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
+    if (heat > 0.45) {
+      // âme incandescente
+      ctx.strokeStyle = hot ? '#fff2a0' : `rgba(255,236,160,${(heat - 0.45) / 0.55})`; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(r0 * 0.6, 0); ctx.lineTo(L - r1, 0); ctx.stroke();
+    }
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(2, -r0 * 0.55); ctx.lineTo(L - 4, -r1 * 0.55); ctx.stroke();
     // axe chromé
@@ -673,6 +732,26 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(20,24,34,0.8)'; ctx.lineWidth = 0.8;
     ctx.beginPath(); ctx.moveTo(-r0 * 0.25, 0); ctx.lineTo(r0 * 0.25, 0); ctx.stroke();
     ctx.restore();
+    if (heat > 0.85) this._flipperSmoke(f, a, heat, hot, rfx);
+  }
+
+  // Fumée qui monte du batteur surchauffé (procédurale, sans état) et étincelles.
+  _flipperSmoke(f, a, heat, hot, rfx) {
+    const ctx = this.ctx, L = f.len, ca = Math.cos(a), sa = Math.sin(a);
+    const k = hot ? 1 : (heat - 0.85) / 0.15;
+    const n = rfx ? 2 : 5;
+    for (let i = 0; i < n; i++) {
+      const ph = (this.time * 0.85 + i / n + f.px * 0.013) % 1;
+      const along = L * (0.2 + 0.7 * i / Math.max(1, n - 1));
+      const x = f.px + ca * along + Math.sin(this.time * 2.3 + i * 1.7) * 5 * ph;
+      const y = f.py + sa * along - ph * 38;
+      ctx.fillStyle = `rgba(150,142,150,${(1 - ph) * 0.4 * k})`;
+      ctx.beginPath(); ctx.arc(x, y, 3 + ph * 10, 0, TAU); ctx.fill();
+    }
+    if (hot && !rfx && Math.random() < 0.07) {
+      const u = 0.3 + Math.random() * 0.7;
+      this.fx.spark(f.px + ca * L * u, f.py + sa * L * u, 1100);
+    }
   }
 
   drawBarrier(seg, t) {

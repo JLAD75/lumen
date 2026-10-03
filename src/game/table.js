@@ -1,18 +1,35 @@
 import { PhysicsWorld } from '../physics/world.js';
 import { Ball } from '../physics/ball.js';
 import { buildCortexTable, T, SHOTS, WORLD, M_PF, M_RAMP, M_DECK, domePoint, mx } from './tableLayout.js';
-import { RULES, SECTORS } from '../config.js';
-import { rand, dist, easeInOutCubic, lerp } from '../util/math.js';
+import { RULES, SECTORS, BARRELS, MINI_SECTORS } from '../config.js';
+import { rand, dist, easeInOutCubic, lerp, clamp01 } from '../util/math.js';
 
 export const SHOT_IDS = ['lorbit', 'lramp', 'portal', 'rramp', 'rorbit'];
 const SHOT_BASE = { lorbit: 4000, lramp: 6000, portal: 3000, rramp: 5000, rorbit: 4000 };
 
 // Plateau principal : physique + règles. Trois niveaux : plateau, rampes, pont supérieur.
-// Accès aux secteurs :
-//   HANGAR   : 3 cibles gauches → rampe du pont (gauche)
-//   DÉFENSE  : 3 cibles tombantes droites → rampe droite
-//   RÉACTEUR : 4 cellules du pont → éjecteur UPLINK (sur le pont)
-//   NOYAU    : 3 secteurs réactivés → portail central
+// Barillets : chaque rampe est un prisme à 3 faces ; la face présentée désigne le minijeu
+// au bout de la rampe (gauche : HANGAR, RÉACTEUR, GRAFFITI ; droite : DÉFENSE, COFFRE, ARÈNE).
+//   - chaque passage sur la rampe allume un chevron de la face (3 chevrons = minijeu accessible,
+//     le passage suivant l'emporte) ; banque gauche → face gauche, cibles tombantes → face droite,
+//     cellules du pont et UPLINK → les deux faces ;
+//   - une face trop utilisée (RULES.overuse passages) ou dont le minijeu vient d'être joué fait
+//     pivoter le barillet : pendant la rotation, l'aimant de l'œil retient la bille au centre.
+//   NOYAU : RULES.coreNeeds secteurs réactivés → portail central (duel contre NULL).
+// Pivot du barillet (s) : déverrouillage, rotation en trois crans, verrouillage.
+export const PIVOT = { unlock: 0.45, turn: 1.6, lock: 0.45 };
+const PIVOT_DUR = PIVOT.unlock + PIVOT.turn + PIVOT.lock;
+// rotation « robotique » : trois crans de 40° séparés de courtes pauses
+export function pivotEase(u) {
+  const n = 3, move = 0.26, pause = (1 - n * move) / (n - 1);
+  let p = 0;
+  for (let k = 0; k < n; k++) {
+    const v = clamp01((u - k * (move + pause)) / move);
+    p += (v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2) / n;
+  }
+  return p;
+}
+
 export class Table {
   constructor(game) {
     this.game = game;
@@ -48,6 +65,13 @@ export class Table {
     this.loops = 0;
     this.sectors = {};
     for (const id of Object.keys(SECTORS)) this.sectors[id] = { done: false, attempts: 0, wins: 0, flash: 0, phaseKept: 0, kept: null };
+    // barillets : faces, face présentée, passages depuis la dernière rotation, animation
+    this.barrels = {};
+    for (const side of ['L', 'R']) this.barrels[side] = { side, faces: BARRELS[side], idx: 0, uses: 0, anim: null, pending: false, flash: 0, chevFlash: 0 };
+    this.chevrons = {};
+    for (const id of MINI_SECTORS) this.chevrons[id] = 0;
+    this.magnet = null;         // aimant de l'œil : { ball, side, phase: 'pull' | 'hold', t, fx, fy }
+    this.heat = { L: { held: 0, hot: false, lock: 0 }, R: { held: 0, hot: false, lock: 0 } };
     this.cpuCount = 0;
     this.multiballLit = false;
     this.multiball = false;
@@ -75,6 +99,8 @@ export class Table {
     this.timers = [];
     this.mood = { kind: 'idle', t: 0 };
     for (const p of this.R.drops) p.enabled = true;
+    this.R.rampL.gate.enabled = false;
+    this.R.rampR.gate.enabled = false;
   }
 
   // humeur des robots de maintenance (décor animé)
@@ -197,16 +223,24 @@ export class Table {
     this.portal.ejectT = 0.7;
     this.portal.glow = 1;
     this.game.bonus.startSave(RULES.returnProtection, 'return');
+    // la face dont le minijeu vient d'être joué est « usée » : le barillet pivote, l'aimant retient la bille
+    for (const side of ['L', 'R']) if (this.barrels[side].pending) { this.pivot(side, 'played', ball); break; }
+  }
+
+  // Bille servie au lanceur au retour d'un minijeu : rotation sans aimant.
+  pivotPending() {
+    for (const side of ['L', 'R']) if (this.barrels[side].pending) this.pivot(side, 'played', null);
   }
 
   // ------------------------------------------------------------ entrées
   handleInput(inp, dt) {
     const R = this.R, bonus = this.game.bonus;
     R.flipL.power = R.flipR.power = bonus.flipperPower;
-    R.flipL.pressed = R.deck.flipL.pressed = inp.left;
-    R.flipR.pressed = R.deck.flipR.pressed = inp.right;
-    if (inp.leftPressed) { this.game.sfx('flipperUp', -1); this.rotateLanes(-1); }
-    if (inp.rightPressed) { this.game.sfx('flipperUp', 1); this.rotateLanes(1); }
+    const left = this._flipperHeat('L', inp.left, dt), right = this._flipperHeat('R', inp.right, dt);
+    R.flipL.pressed = R.deck.flipL.pressed = left;
+    R.flipR.pressed = R.deck.flipR.pressed = right;
+    if (inp.leftPressed) { if (left) this.game.sfx('flipperUp', -1); this.rotateLanes(-1); }
+    if (inp.rightPressed) { if (right) this.game.sfx('flipperUp', 1); this.rotateLanes(1); }
     if (inp.leftReleased) this.game.sfx('flipperDown', -1);
     if (inp.rightReleased) this.game.sfx('flipperDown', 1);
     const P = this.plunger;
@@ -223,6 +257,34 @@ export class Table {
         this.launch(Math.max(0.12, c));
       }
     } else if (!inp.launch) P.charge = 0;
+  }
+
+  // FURIE : un batteur tenu levé plus de RULES.flipperHeat s surchauffe, rougit et retombe ;
+  // il reste bloqué RULES.flipperCool s puis attend que la commande soit relâchée.
+  _flipperHeat(side, want, dt) {
+    const H = this.heat[side], R = this.R;
+    const flips = side === 'L' ? [R.flipL, R.deck.flipL] : [R.flipR, R.deck.flipR];
+    let pressed = want;
+    if (!this.game.frenzy) { H.held = 0; H.hot = false; H.lock = 0; }
+    else {
+      if (H.lock > 0) H.lock -= dt;
+      if (H.hot) {
+        pressed = false;
+        if (!want && H.lock <= 0) { H.hot = false; H.held = 0; }
+      } else if (want) {
+        H.held += dt;
+        if (H.held >= RULES.flipperHeat) {
+          H.hot = true; H.lock = RULES.flipperCool; pressed = false;
+          const f = flips[0];
+          this.game.sfx('flipperOverheat', side === 'L' ? -1 : 1);
+          this.game.fx.burst((f.px + f.tx) / 2, (f.py + f.ty) / 2, '#ff4030', 14, 260);
+          this.game.say('flipperHot');
+        }
+      } else H.held = 0;
+    }
+    const k = this.game.frenzy ? Math.min(1, H.held / RULES.flipperHeat) : 0;
+    for (const f of flips) { f.heat = H.hot ? 1 : k; f.hot = H.hot; }
+    return pressed;
   }
 
   // Les batteurs décalent les couloirs allumés et, avant le lancer, la cellule « skill shot ».
@@ -256,12 +318,14 @@ export class Table {
     this._updateUplink(dt);
     this._updateSpinners(dt);
     this._updateDrops(dt);
+    this._updateBarrels(dt);
+    this._updateMagnet(dt);
 
     if (this.combo.t > 0) { this.combo.t -= dt; if (this.combo.t <= 0) { this.combo.count = 0; this.combo.last = null; } }
     // un secteur qui devient réellement accessible (fin de multibille, dernier secteur gagné…) est annoncé
-    if (!this.lockedOut) for (const id of ['hangar', 'reactor', 'defense', 'core']) if (!this.announced[id] && this.sectorState(id) === 'ready') this.sectorReady(id);
+    if (!this.lockedOut) for (const id of [...MINI_SECTORS, 'core']) if (!this.announced[id] && this.sectorState(id) === 'ready') this.sectorReady(id);
     if (this.orbitIn && this.time - this.orbitIn.t > RULES.loopWindow) this.orbitIn = null;
-    if (this.multiball && this.ballsInPlay() <= 1 && this.anims.length === 0 && !this.uplink.ball) this.endMultiball();
+    if (this.multiball && !g.frenzy && this.ballsInPlay() <= 1 && this.anims.length === 0 && !this.uplink.ball) this.endMultiball();
     if (this.deferredT > 0) {
       this.deferredT -= dt;
       if (this.deferredT <= 0) {
@@ -286,6 +350,7 @@ export class Table {
     this.uplink.flash = Math.max(0, this.uplink.flash - dt * 1.5);
     this.kickback.flash = Math.max(0, this.kickback.flash - dt * 2);
     this.deckFlashAll = Math.max(0, this.deckFlashAll - dt);
+    for (const s of ['L', 'R']) { const B = this.barrels[s]; B.flash = Math.max(0, B.flash - dt); B.chevFlash = Math.max(0, B.chevFlash - dt * 1.5); }
     if (this.mood.t > 0) this.mood.t -= dt;
     this.plunger.kick = Math.max(0, this.plunger.kick - dt * 4);
   }
@@ -347,6 +412,7 @@ export class Table {
     const g = this.game;
     const remaining = this.ballsInPlay() + (this.uplink.ball ? 1 : 0);
     g.fx.drain(ball.x);
+    if (g.frenzy && remaining > 0) { g.sfx('drainMulti'); return; }
     if (g.bonus.saveT > 0) {
       this.queueLaunch(0.5);
       g.sfx('ballSave');
@@ -504,12 +570,8 @@ export class Table {
     g.missions.event('deck');
     this.shot('lramp', b, { label: 'PONT' });
     this._rampJackpot('lramp');
-    // secteur HANGAR : la rampe du pont ouvre l'accès au casse-briques
-    if (this.sectorState('hangar') === 'hold') { g.say('hold'); return; }
-    if (this.sectorState('hangar') === 'ready' && g.canStartMinigame() && this.ballsInPlay() === 1) {
-      const rp = this.R.rampL;
-      this.startMinigameCapture('hangar', b, rp.portalX, rp.portalY);
-    }
+    if (this._tryStart('L', b)) return;
+    this.onRampMade('L', b);
   }
 
   onDeckDrain(b) {
@@ -539,15 +601,12 @@ export class Table {
     if (this.deckTargets.every(Boolean)) {
       this.deckFlashAll = 1.5;
       g.sfx('bankComplete');
-      if (!this.sectors.reactor.done) {
-        this.sectorReady('reactor');
-      } else {
-        g.addScore(25000 * g.level, 285, -20, 'CELLULES');
-        this.later(0.6, () => this.deckTargets.fill(false));
-      }
+      g.addScore(25000 * g.level, 285, -20, 'CELLULES');
+      this.later(0.6, () => this.deckTargets.fill(false));
+      this.addChevron('L', 'cells'); this.addChevron('R', 'cells');
       if (!this.kickback.lit) { this.kickback.lit = true; this.kickback.flash = 1; g.banner('KICKBACK ALLUMÉ', 'Le couloir extérieur gauche est protégé', '#5dff8f', 1.4); }
-    } else if (!this.sectors.reactor.done) {
-      g.say('targetProgress', { sector: SECTORS.reactor.name, n: this.deckTargets.filter(Boolean).length, max: 4 });
+    } else {
+      g.say('targetProgress', { sector: 'CELLULES', n: this.deckTargets.filter(Boolean).length, max: 4 });
     }
   }
 
@@ -558,12 +617,7 @@ export class Table {
     this.uplink.ball = b;
     this.uplink.flash = 1;
     g.missions.event('uplink');
-    if (this.sectorState('reactor') === 'ready' && g.canStartMinigame() && this.ballsInPlay() === 1) {
-      this.uplink.ball = null;
-      this.startMinigameCapture('reactor', b, U.x, U.y);
-      return;
-    }
-    if (this.sectorState('reactor') === 'hold') g.say('hold');
+    this.addChevron('L', 'uplink'); this.addChevron('R', 'uplink');
     g.sfx('uplinkIn');
     this.captureBall(b, U.x, U.y, 0.18, 'uplink', () => { this.uplink.t = 0.9; });
     g.addScore(5000 * g.level, U.x, U.y - 30, 'UPLINK');
@@ -626,11 +680,9 @@ export class Table {
     g.addScore(1500, b.x, b.y - 20);
     if (this.drops.every(Boolean)) {
       g.sfx('bankComplete');
-      if (!this.sectors.defense.done) this.sectorReady('defense');
-      else g.addScore(25000 * g.level, 472, 640, 'BOUCLIERS');
-      this.dropResetT = this.sectors.defense.done ? 1.2 : -1;
-    } else if (!this.sectors.defense.done) {
-      g.say('targetProgress', { sector: SECTORS.defense.name, n: this.drops.filter(Boolean).length, max: 3 });
+      g.addScore(10000 * g.level, 472, 640, 'BOUCLIERS');
+      this.addChevron('R', 'drops');
+      this.dropResetT = 1.2;
     }
   }
 
@@ -649,22 +701,207 @@ export class Table {
 
   // ------------------------------------------------------------- secteurs
   sectorProgress(id) {
-    if (id === 'hangar') return this.bankL.filter(Boolean).length / 3;
-    if (id === 'defense') return this.drops.filter(Boolean).length / 3;
-    if (id === 'reactor') return this.deckTargets.filter(Boolean).length / 4;
-    if (id === 'core') return ['hangar', 'reactor', 'defense'].filter(s => this.sectors[s].done).length / 3;
+    if (id === 'core') return Math.min(1, this.sectorsDone() / RULES.coreNeeds);
+    if (this.chevrons[id] !== undefined) return this.chevrons[id] / RULES.chevrons;
     return 0;
   }
 
-  minigamesOnHold() { return this.multiball || this.launchQueue.length > 0 || this.game.bonus.deferredMB > 0; }
+  sectorsDone() { return MINI_SECTORS.filter(s => this.sectors[s].done).length; }
 
-  // locked | prep | ready | hold | done
+  minigamesOnHold() { return this.multiball || !!this.game.frenzy || this.launchQueue.length > 0 || this.game.bonus.deferredMB > 0; }
+
+  // locked | prep | armed (qualifié, face non présentée) | ready | hold | done
   sectorState(id) {
     const s = this.sectors[id];
+    if (!s) return 'locked';
     if (s.done) return 'done';
     const p = this.sectorProgress(id);
-    if (p >= 1) return this.minigamesOnHold() ? 'hold' : 'ready';
+    if (p >= 1) {
+      const side = SECTORS[id].barrel;
+      if (side && (this.face(side) !== id || this.barrels[side].anim)) return 'armed';
+      return this.minigamesOnHold() ? 'hold' : 'ready';
+    }
     return p > 0 ? 'prep' : 'locked';
+  }
+
+  // ------------------------------------------------------------- barillets
+  face(side) { const B = this.barrels[side]; return B.faces[B.idx]; }
+
+  // Un chevron de plus sur la face présentée (passage de rampe, banque, cellules, UPLINK).
+  addChevron(side, src = 'ramp') {
+    const g = this.game, B = this.barrels[side];
+    if (B.anim) return false;
+    const id = this.face(side), S = SECTORS[id];
+    const at = SHOTS[side === 'L' ? 'lramp' : 'rramp'];
+    if (this.sectors[id].done) {
+      if (src === 'ramp') g.addScore(15000 * g.level, at.x, at.y - 140, 'SECTEUR SÉCURISÉ');
+      return false;
+    }
+    if (this.chevrons[id] >= RULES.chevrons) return false;
+    this.chevrons[id]++;
+    B.chevFlash = 1;
+    g.sfx('chevron', this.chevrons[id]);
+    if (this.chevrons[id] >= RULES.chevrons) this.sectorReady(id);
+    else g.say('targetProgress', { sector: S.name, n: this.chevrons[id], max: RULES.chevrons });
+    return true;
+  }
+
+  // Passage complet sur une rampe : la face progresse ; une face trop utilisée fait pivoter le barillet.
+  onRampMade(side, b) {
+    const g = this.game, B = this.barrels[side];
+    if (B.anim) return;
+    const id = this.face(side);
+    if (this.sectorState(id) === 'hold') g.say('hold');
+    this.addChevron(side, 'ramp');
+    B.uses++;
+    const limit = this.sectors[id].done ? 2 : RULES.overuse;
+    if (B.uses >= limit) this.pivot(side, 'overuse', b);
+    else if (B.uses === limit - 1 && this.sectorState(id) !== 'ready') {
+      g.banner('BARILLET EN SURCHAUFFE', `${side === 'L' ? 'Rampe gauche' : 'Rampe droite'} : encore un passage et elle pivote`, '#ffb52e', 1.6, 'barrelWarn');
+      g.sfx('barrelWarn', side === 'L' ? -1 : 1);
+    }
+  }
+
+  // Lance le minijeu de la face présentée si elle est accessible.
+  _tryStart(side, b) {
+    const g = this.game, id = this.face(side);
+    if (this.barrels[side].anim) return false;
+    if (this.sectorState(id) === 'hold') return false;
+    if (this.sectorState(id) === 'ready' && g.canStartMinigame() && this.ballsInPlay() === 1) {
+      const rp = side === 'L' ? this.R.rampL : this.R.rampR;
+      this.startMinigameCapture(id, b, rp.portalX, rp.portalY);
+      return true;
+    }
+    return false;
+  }
+
+  // Rotation du barillet : volet d'entrée fermé ; l'aimant de l'œil retient la bille (hors FURIE).
+  pivot(side, reason, ball = null) {
+    const B = this.barrels[side], g = this.game;
+    if (B.anim) return false;
+    B.pending = false;
+    const to = (B.idx + 1) % B.faces.length;
+    const from = B.faces[B.idx], next = B.faces[to];
+    B.anim = { t: 0, from: B.idx, to, reason, step: 0 };
+    B.uses = 0;
+    this.announced[from] = false;
+    (side === 'L' ? this.R.rampL : this.R.rampR).gate.enabled = true;
+    g.sfx('barrelUnlock', side === 'L' ? -1 : 1);
+    g.banner('ROTATION DU BARILLET', `${side === 'L' ? 'Rampe gauche' : 'Rampe droite'} : ${SECTORS[from].name} → ${SECTORS[next].name}`, SECTORS[next].color, 2.4, 'pivot', { from: SECTORS[from].name, to: SECTORS[next].name, side });
+    g.say(reason === 'played' ? 'pivotPlayed' : 'pivot', { to: SECTORS[next].name });
+    if (ball && !g.frenzy && !this.magnet && this.world.balls.includes(ball)) this.grabMagnet(ball, side);
+    return true;
+  }
+
+  _updateBarrels(dt) {
+    const g = this.game;
+    for (const side of ['L', 'R']) {
+      const B = this.barrels[side], a = B.anim;
+      if (!a) continue;
+      const before = a.t;
+      a.t += dt;
+      const pan = side === 'L' ? -1 : 1;
+      const t1 = PIVOT.unlock, t2 = PIVOT.unlock + PIVOT.turn;
+      if (before < t1 && a.t >= t1) g.sfx('barrelServo', pan);
+      // un cran à chaque arrêt de la rotation (3 crans)
+      const step = a.t < t1 ? 0 : Math.min(3, Math.floor(pivotEase(Math.min(1, (a.t - t1) / PIVOT.turn)) * 3 + 0.02));
+      if (step > a.step) { a.step = step; g.sfx('barrelStep', pan, step); g.fx.shake(1.5); }
+      if (before < t2 && a.t >= t2) { g.sfx('barrelLock', pan); g.fx.shake(4); }
+      if (a.t >= PIVOT_DUR) {
+        B.idx = a.to; B.anim = null; B.flash = 1.2; B.uses = 0;
+        (side === 'L' ? this.R.rampL : this.R.rampR).gate.enabled = false;
+        const S = SECTORS[B.faces[B.idx]];
+        g.fx.sweep?.(S.color, 1000, -100, 0.5);
+      }
+    }
+  }
+
+  // Vue d'un barillet pour le rendu. rot = face présentée, fractionnaire pendant la rotation
+  // (rot % 3 → indice de face) ; phase : idle | unlock | turn | lock, k = avancement de la phase.
+  barrelView(side) {
+    const B = this.barrels[side], a = B.anim;
+    let rot = B.idx, phase = 'idle', k = 0;
+    if (a) {
+      const t1 = PIVOT.unlock, t2 = PIVOT.unlock + PIVOT.turn;
+      if (a.t < t1) { phase = 'unlock'; k = a.t / t1; rot = a.from; }
+      else if (a.t < t2) { phase = 'turn'; k = (a.t - t1) / PIVOT.turn; rot = a.from + pivotEase(k); }
+      else { phase = 'lock'; k = Math.min(1, (a.t - t2) / PIVOT.lock); rot = a.from + 1 + Math.sin(k * Math.PI * 2.5) * Math.exp(-4 * k) * 0.035; }
+    }
+    const cur = B.faces[B.idx];
+    return {
+      side, faces: B.faces, idx: B.idx, rot, phase, k, t: a ? a.t : 0, closed: !!a,
+      uses: B.uses, limit: this.sectors[cur].done ? 2 : RULES.overuse, flash: B.flash, chevFlash: B.chevFlash,
+      chevrons: B.faces.map(id => this.chevrons[id]), max: RULES.chevrons, states: B.faces.map(id => this.sectorState(id)),
+    };
+  }
+
+  // ------------------------------------------------------------- aimant de l'œil
+  grabMagnet(ball, side) {
+    const g = this.game, E = T.eye;
+    if (this.uplink.ball === ball) this.uplink.ball = null;
+    this.anims = this.anims.filter(a => a.ball !== ball);
+    ball.state = 'captured'; ball.trail.length = 0;
+    ball.gScale = 1; ball.maxSpeed = 0; ball.plunged = false;
+    ball.layer = 1;             // dessinée au-dessus du décor pendant le transfert
+    this.magnet = { ball, side, phase: 'pull', t: 0, fx: ball.x, fy: ball.y };
+    g.sfx('magnetGrab');
+    g.fx.arc?.(E.x, E.y, ball.x, ball.y, '#29e3ff', 0.5);
+  }
+
+  _updateMagnet(dt) {
+    const M = this.magnet;
+    if (!M) return;
+    const b = M.ball, E = T.eye, g = this.game;
+    if (!this.world.balls.includes(b)) { this.magnet = null; return; }
+    M.t += dt;
+    if (M.phase === 'pull') {
+      // rayon tracteur : courbe au-dessus du plateau, la bille « monte » vers le joueur
+      const u = Math.min(1, M.t / 0.8), e = easeInOutCubic(u), q = 1 - e;
+      const cx = (M.fx + E.x) / 2, cy = Math.min(M.fy, E.y) - 90;
+      b.x = q * q * M.fx + 2 * q * e * cx + e * e * E.x;
+      b.y = q * q * M.fy + 2 * q * e * cy + e * e * E.y;
+      b.scale = 1 + 0.3 * Math.sin(Math.PI * e);
+      if (u >= 1) {
+        M.phase = 'hold'; M.t = 0; b.layer = 0; b.scale = 1.06;
+        g.sfx('magnetLock');
+        g.fx.ring(E.x, E.y, '#29e3ff', 60);
+        g.fx.shake(3);
+      }
+    } else {
+      b.x = E.x + Math.sin(this.time * 7.3) * 1.3;
+      b.y = E.y + Math.cos(this.time * 9.1) * 1.3;
+      const B = this.barrels[M.side];
+      if ((!B.anim && M.t > 0.35) || M.t > 6) this.releaseMagnet();
+    }
+  }
+
+  // La bille retombe de l'œil vers l'un des batteurs, avec une courte sauvegarde.
+  releaseMagnet() {
+    const M = this.magnet;
+    if (!M) return;
+    const b = M.ball, E = T.eye, g = this.game;
+    this.magnet = null;
+    b.state = 'free'; b.layer = 0; b.scale = 1;
+    b.setPos(E.x, E.y);
+    b.vx = (Math.random() < 0.5 ? -1 : 1) * rand(90, 130); b.vy = 140;
+    g.bonus.startSave(3, 'magnet');
+    g.sfx('magnetRelease');
+    g.fx.ring(E.x, E.y, '#29e3ff', 40);
+  }
+
+  // ------------------------------------------------------------- FURIE
+  // La station lâche des billes depuis le haut du plateau, par les couloirs C·P·U.
+  spawnFrenzyBalls(n) {
+    const lanes = [228, 282, 336];
+    for (let i = 0; i < n; i++) this.later(0.25 + i * 0.17, () => {
+      if (!this.game.frenzy) return;
+      const b = new Ball(lanes[i % 3] + rand(-5, 5), 141);
+      b.vx = rand(-50, 50); b.vy = rand(60, 160);
+      b.hue = (i * 41) % 360;
+      this.world.addBall(b);
+      this.game.fx.ring(b.x, b.y, '#ff3040', 30);
+      this.game.sfx('frenzyDrop', i);
+    });
   }
 
   // Annonce d'accès à un secteur. En multibille, l'accès est qualifié mais en attente :
@@ -684,7 +921,7 @@ export class Table {
     this.sectors[id].flash = 2;
     g.fx.sweep?.(s.color);
     g.sfx('sectorReady');
-    const where = { hangar: 'rampe du pont (gauche)', defense: 'rampe droite', reactor: 'éjecteur UPLINK du pont', core: 'portail central' }[id];
+    const where = id === 'core' ? 'portail central' : s.barrel === 'L' ? 'rampe gauche' : 'rampe droite';
     g.banner(`${s.name} ACCESSIBLE`, `${s.game} — ${where}`, s.color, 2, 'sectorReady', { name: s.name });
     g.say('sectorReady', { sector: id });
     this.react('cheer', 1.5);
@@ -695,9 +932,9 @@ export class Table {
     this.announced[sector] = false;
     s.attempts++;
     if (success) { s.done = true; s.wins++; }
-    if (sector === 'hangar') this.bankL = [false, false, false];
-    if (sector === 'defense') this.raiseDrops();
-    if (sector === 'reactor') this.deckTargets = [false, false, false, false];
+    // la face jouée est requalifiée et son barillet pivotera au retour de la bille
+    const side = SECTORS[sector].barrel;
+    if (side) { this.chevrons[sector] = 0; this.barrels[side].pending = true; }
     this.ballStats.modes++;
   }
 
@@ -705,6 +942,7 @@ export class Table {
   newCycle() {
     this.announced = {};
     for (const id of Object.keys(this.sectors)) { this.sectors[id].done = false; this.sectors[id].phaseKept = 0; this.sectors[id].kept = null; }
+    for (const id of MINI_SECTORS) this.chevrons[id] = 0;
     this.bankL = [false, false, false];
     this.deckTargets = [false, false, false, false];
     this.raiseDrops();
@@ -804,12 +1042,7 @@ export class Table {
   onRampTop(side, dir, b) {
     if (dir <= 0) return;
     b.gScale = 1;
-    const sector = 'defense';
-    if (this.sectorState(sector) === 'hold') { this.game.say('hold'); return; }
-    if (this.sectorState(sector) === 'ready' && this.game.canStartMinigame() && this.ballsInPlay() === 1) {
-      const rp = this.R.rampR;
-      this.startMinigameCapture(sector, b, rp.portalX, rp.portalY);
-    }
+    this._tryStart('R', b);
   }
 
   onRampExit(side, dir, b) {
@@ -823,6 +1056,7 @@ export class Table {
     g.missions.event('ramp');
     this.shot('rramp', b);
     this._rampJackpot('rramp');
+    this.onRampMade('R', b);
   }
 
   onLane(i, b) {
@@ -924,7 +1158,6 @@ export class Table {
   onTarget(side, i, b, imp, phased) {
     const g = this.game;
     const bank = this.bankL;
-    const sector = 'hangar';
     this.bankFlash[side][i] = 1;
     this.ballStats.targets++;
     g.missions.event('target');
@@ -934,16 +1167,10 @@ export class Table {
     bank[i] = true;
     g.addScore(1500, b.x, b.y - 20);
     if (bank.every(Boolean)) {
-      if (this.sectors[sector].done) {
-        g.addScore(25000 * g.level, 90, 640, 'BANQUE');
-        g.sfx('bankComplete');
-        this.later(0.6, () => bank.fill(false));
-      } else {
-        g.sfx('bankComplete');
-        this.sectorReady(sector);
-      }
-    } else if (!this.sectors[sector].done) {
-      g.say('targetProgress', { sector: SECTORS[sector].name, n: bank.filter(Boolean).length, max: 3 });
+      g.addScore(10000 * g.level, 90, 640, 'BANQUE');
+      g.sfx('bankComplete');
+      this.addChevron('L', 'bank');
+      this.later(0.6, () => bank.fill(false));
     }
   }
 
@@ -1003,7 +1230,7 @@ export class Table {
     g.music?.setFlag('multiball', false);
     g.say('multiballEnd');
     // les accès aux minijeux mis en attente redeviennent disponibles
-    for (const id of ['hangar', 'reactor', 'defense', 'core']) {
+    for (const id of [...MINI_SECTORS, 'core']) {
       if (this.sectorState(id) === 'ready') { this.sectors[id].flash = 2; }
     }
   }
@@ -1037,56 +1264,61 @@ export class Table {
       if (st === 'ready') { l.main = 'mode'; l.color = SECTORS[sector].color; l.label = label; l.blink = 1; }
       else if (st === 'hold') { l.main = 'hold'; l.color = '#ffb52e'; l.label = 'EN ATTENTE'; l.hold = true; }
     };
-    setMode('lramp', 'hangar', 'BRIQUES');
-    setMode('rramp', 'defense', 'DÉFENSE');
+    // rampes : couleur de la face présentée ; accessible = clignote, rotation = ambre
+    const faceTint = {};
+    for (const [id, side] of [['lramp', 'L'], ['rramp', 'R']]) {
+      const face = this.face(side), l = out[id];
+      if (this.barrels[side].anim) { l.main = 'hold'; l.color = '#ffb52e'; l.label = 'ROTATION'; continue; }
+      setMode(id, face, SECTORS[face].name);
+      if (!this.sectors[face].done) faceTint[id] = SECTORS[face].color;
+    }
     const pm = this.portalMode();
     if (pm === 'core') { out.portal.main = 'mode'; out.portal.color = SECTORS.core.color; out.portal.label = 'DUEL NULL'; out.portal.blink = 1; }
     else if (pm === 'multiball') { out.portal.main = 'mode'; out.portal.color = '#ff3df2'; out.portal.label = 'MULTIBILLE'; out.portal.blink = 1; }
     else if (pm === 'super') { out.portal.main = 'jackpot'; out.portal.color = '#ffd84a'; out.portal.label = 'SUPER JACKPOT'; out.portal.blink = 1; }
     else if (this.sectorState('core') === 'hold') { out.portal.main = 'hold'; out.portal.color = '#ffb52e'; out.portal.label = 'EN ATTENTE'; out.portal.hold = true; }
-    // rampe du pont : invite à monter quand le réacteur se prépare ou attend sur le pont
-    const rs = this.sectorState('reactor');
-    if (!out.lramp.main && (rs === 'prep' || rs === 'ready')) {
-      out.lramp.main = rs === 'ready' ? 'mode' : 'prep'; out.lramp.color = SECTORS.reactor.color;
-      out.lramp.label = rs === 'ready' ? 'RÉACTEUR' : 'PONT'; out.lramp.blink = rs === 'ready' ? 1 : 0;
-    }
     for (const id of SHOT_IDS) {
       const l = out[id];
       if (!l.main && l.jackpot) { l.main = 'jackpot'; l.color = '#ffd84a'; l.label = 'JACKPOT'; l.blink = 1; }
       if (!l.main && g.bonus.rampJT > 0 && (id === 'lramp' || id === 'rramp')) { l.main = 'jackpot'; l.color = '#ffb52e'; l.label = 'JACKPOT'; l.blink = 0.5; }
+      if (!l.main && faceTint[id]) { l.main = 'prep'; l.color = faceTint[id]; }
     }
     return out;
   }
 
   // Prochain objectif conseillé (lisibilité) : texte court et couleur.
   nextGoal() {
+    const F = this.game.frenzy;
+    if (F) return { text: `FURIE : ${this.ballsInPlay()} billes en jeu, gardez-en ${F.need} (${Math.ceil(F.intro > 0 ? F.dur : F.t)} s)`, color: '#ff4030' };
     if (this.multiball) {
       return this.superLit ? { text: 'Super jackpot : portail central', color: '#ffd84a' } : { text: 'Multibille : jackpots sur rampes et orbites', color: '#ff3df2' };
     }
-    const where = { core: 'Portail central : duel contre NULL', hangar: 'Rampe du pont : HANGAR', defense: 'Rampe droite : DÉFENSE', reactor: 'Pont supérieur → UPLINK : RÉACTEUR' };
-    for (const id of ['core', 'hangar', 'defense', 'reactor']) {
-      if (this.sectorState(id) === 'ready') return { text: where[id], color: SECTORS[id].color };
+    const sideName = (s) => s === 'L' ? 'Rampe gauche' : 'Rampe droite';
+    if (this.sectorState('core') === 'ready') return { text: 'Portail central : duel contre NULL', color: SECTORS.core.color };
+    for (const side of ['L', 'R']) {
+      const id = this.face(side);
+      if (this.sectorState(id) === 'ready') return { text: `${sideName(side)} : ${SECTORS[id].name}`, color: SECTORS[id].color };
     }
     if (this.multiballLit) return { text: 'Portail central : multibille', color: '#ff3df2' };
-    const counts = {
-      hangar: [this.bankL.filter(Boolean).length, 3, 'cibles gauches'],
-      defense: [this.drops.filter(Boolean).length, 3, 'cibles tombantes'],
-      reactor: [this.deckTargets.filter(Boolean).length, 4, 'cellules du pont'],
-    };
     let best = null;
-    for (const id of ['hangar', 'defense', 'reactor']) {
-      if (this.sectors[id].done) continue;
-      if (!best || counts[id][0] / counts[id][1] > counts[best][0] / counts[best][1]) best = id;
+    for (const side of ['L', 'R']) {
+      const id = this.face(side);
+      if (this.sectors[id].done || this.barrels[side].anim) continue;
+      if (!best || this.chevrons[id] > this.chevrons[this.face(best)]) best = side;
     }
-    if (best) { const [n, m, what] = counts[best]; return { text: `${SECTORS[best].name} : ${what} ${n}/${m}`, color: SECTORS[best].color }; }
+    if (best) { const id = this.face(best); return { text: `${sideName(best)} → ${SECTORS[id].name} ${this.chevrons[id]}/${RULES.chevrons}`, color: SECTORS[id].color }; }
     return { text: 'C·P·U : allumez les 3 couloirs', color: '#29e3ff' };
   }
 
   // ------------------------------------------------------- débogage
   debugQualify(sector) {
-    if (sector === 'hangar') this.bankL = [true, true, true];
-    if (sector === 'defense') { this.drops = [true, true, true]; for (const p of this.R.drops) p.enabled = false; }
-    if (sector === 'reactor') this.deckTargets = [true, true, true, true];
-    if (sector === 'core') { this.sectors.hangar.done = this.sectors.reactor.done = this.sectors.defense.done = true; }
+    const side = SECTORS[sector] && SECTORS[sector].barrel;
+    if (side) {
+      const B = this.barrels[side];
+      B.idx = B.faces.indexOf(sector); B.anim = null; B.uses = 0; B.pending = false;
+      (side === 'L' ? this.R.rampL : this.R.rampR).gate.enabled = false;
+      this.chevrons[sector] = RULES.chevrons;
+    }
+    if (sector === 'core') for (const id of MINI_SECTORS.slice(0, RULES.coreNeeds)) this.sectors[id].done = true;
   }
 }

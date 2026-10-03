@@ -67,6 +67,8 @@ const EVENTS = [
   ['shield', {}],
   ['ballLost', { bonus: 48200 }],
   ['levelUp', { lvl: 2 }],
+  ['pivot', { from: 'HANGAR', to: 'RÉACTEUR', side: 'L', color: '#ffae2a' }],
+  ['frenzy', { sub: '10 billes : gardez-en 6 pendant 30 s', color: '#ff3040' }],
   ['gameOver', { score: 4512870 }],
   ['banner', { title: 'RÉPLICATION PRÊTE', sub: 'Multibille au portail central', color: '#ff3df2' }],
 ];

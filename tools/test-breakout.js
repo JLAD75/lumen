@@ -70,7 +70,8 @@ function enterHangar(g, level) {
   return { mg: g.minigame, id: ball.id };
 }
 
-const backToTable = (g) => run(g, 5, () => g.scene === 'table' && !g.transition ? false : undefined);
+// retour au plateau, puis fin de la rotation du barillet (l'aimant de l'œil relâche la bille)
+const backToTable = (g) => { run(g, 5, () => g.scene === 'table' && !g.transition ? false : undefined); run(g, 5, () => g.table.magnet ? undefined : false); };
 
 // ------------------------------------------------------------------ pilote automatique
 // Prédit le point d'arrivée de la bille (rebonds sur les murs) et vise le verrou restant

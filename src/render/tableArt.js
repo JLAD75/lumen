@@ -3,9 +3,11 @@ import { T, SHOTS, WORLD } from '../game/tableLayout.js';
 import { lerp, mulberry32, rgba, TAU } from '../util/math.js';
 import { glowSprite } from './sprites.js';
 import {
-  NEON, SHADOW, polyPath, chrome, wireRamp, post, screw, plastic, paint,
+  NEON, SHADOW, polyPath, chrome, post, screw, plastic, paint,
   insertBase, insertLit, synthGrid, skyline, circuits, hazard, grain,
 } from './artKit.js';
+import { DialArt, DIAL, PORTAL_INS } from './dialArt.js';
+import { BarrelArt } from './barrelArt.js';
 
 const CYAN = '#29e3ff', MAGENTA = '#ff3df2', AMBER = '#ffb52e', VIOLET = '#a070ff';
 
@@ -25,7 +27,8 @@ export function drawPlate(g, kind = 'table') {
   const pal = {
     table: ['#0d1328', '#121a33', CYAN], hangar: ['#0a1426', '#0f1e36', '#29d9ff'],
     reactor: ['#1a1008', '#24160b', '#ffae2a'], defense: ['#081a12', '#0c2419', '#5dff8f'],
-    core: ['#1c070e', '#290b16', '#ff3d6e'],
+    core: ['#1c070e', '#290b16', '#ff3d6e'], tag: ['#14160a', '#1c1f0c', '#e6ff3d'],
+    vault: ['#120a22', '#1a0f30', '#b07bff'], arena: ['#080e24', '#0c1534', '#4d7dff'],
   }[kind] || ['#0d1328', '#121a33', CYAN];
   // caisson
   g.fillStyle = '#070a14';
@@ -177,28 +180,20 @@ const DISPLAY = '"Orbitron", "Rajdhani", sans-serif';
 const TEXT = '"Rajdhani", "Segoe UI", sans-serif';
 
 // ---------------------------------------------------------------- disposition des inserts
-const RING = { x: 281, y: 672, r: 84 };
-const RING_ITEMS = [
-  { id: 'core', ang: -90, col: C.red, label: 'DUEL NULL' },
-  { id: 'defense', ang: -45, col: C.green, label: 'DÉFENSE' },
-  { id: 'multiball', ang: 0, col: C.magenta, label: 'MULTIBILLE' },
-  { id: 'super', ang: 45, col: C.gold, label: 'SUPER JACKPOT' },
-  { id: 'mission', ang: 90, col: C.amber, label: 'MISSION' },
-  { id: 'kickback', ang: 135, col: C.lime, label: 'KICKBACK' },
-  { id: 'reactor', ang: 180, col: C.orange, label: 'RÉACTEUR' },
-  { id: 'hangar', ang: -135, col: C.cyan, label: 'HANGAR' },
-];
-const ringPos = (it) => [RING.x + Math.cos(it.ang * Math.PI / 180) * RING.r, RING.y + Math.sin(it.ang * Math.PI / 180) * RING.r];
+// Le centre du plateau est LE CADRAN (dialArt.js) ; ses rayons sont dans DIAL.
+const RING = { x: DIAL.x, y: DIAL.y, r: DIAL.bez };
 
 const ARROWS = {
   lorbit: { x: 86, y: 522, rot: -0.42, col: C.violet },
   lramp: { x: 147, y: 530, rot: 0, col: C.cyan },
-  portal: { x: 281, y: 510, rot: 0, col: C.violet },
+  portal: { x: PORTAL_INS.x, y: PORTAL_INS.y, rot: 0, col: C.violet, s: PORTAL_INS.s },
   rramp: { x: 415, y: 530, rot: 0, col: C.green },
   rorbit: { x: 476, y: 522, rot: 0.42, col: C.violet },
 };
-const BONUSX = [[221, 792], [261, 792], [301, 792], [341, 792]];
 const SAVE = { x: 281, y: 1020 };
+const PORTRAITS = { lumen: [135, 606], null: [427, 606] };
+// gyrophares de la FURIE : sur les rails latéraux [x, y, phase]
+const BEACONS = [[10, 470, 0], [590, 470, Math.PI], [10, 900, Math.PI / 2], [590, 900, -Math.PI / 2]];
 const LANE_C = [228, 282, 336];
 
 function bankInserts() {
@@ -255,10 +250,12 @@ function deckFloorPath(g, R) {
 export class TableArt {
   constructor(r) {
     this.r = r;
-    this.eye = { x: 0, y: 0, blink: 0, nextBlink: 3 };
     this.ring = RING;              // position de l'œil (extinction de fin de partie)
+    this.dial = new DialArt(r);
+    this.barrels = new BarrelArt(r);
     this.flashers = { tl: 0, tr: 0, bl: 0, br: 0 };
     this.lastScore = 0;
+    this.fury = 0; this.lastT = 0;  // FURIE : intensité lissée de l'éclairage de colère
   }
 
   // ============================================================ calque statique (plateau)
@@ -343,11 +340,11 @@ export class TableArt {
     skyline(g, 62, 500, 252, 70, 21, [C.cyan, C.magenta, C.amber]);
     synthGrid(g, 40, 522, 252, 450, C.magenta, 0.3);
     g.restore();
-    // emblème de la station Cortex-9 sous l'anneau d'inserts
-    this._emblem(g);
-    // portraits peints : LUMEN (gauche) et NULL (droite)
-    this._portrait(g, 134, 676, 'lumen');
-    this._portrait(g, 428, 676, 'null');
+    // le cadran : soleil Art déco, gradins, plateau peint
+    this.dial.drawPaint(g);
+    // portraits peints dans des médaillons : LUMEN (gauche) et NULL (droite)
+    this._portrait(g, ...PORTRAITS.lumen, 'lumen');
+    this._portrait(g, ...PORTRAITS.null, 'null');
     // circuits et traînées néon dans la moitié basse
     circuits(g, 30, 720, 530, 1000, 34, C.cyan, 31, 0.1);
     circuits(g, 30, 440, 530, 720, 20, C.magenta, 32, 0.08);
@@ -366,42 +363,24 @@ export class TableArt {
     g.restore();
   }
 
-  _emblem(g) {
-    const { x, y } = RING;
-    g.save();
-    const halo = g.createRadialGradient(x, y, 20, x, y, 150);
-    halo.addColorStop(0, 'rgba(60,30,120,0.55)'); halo.addColorStop(1, 'rgba(10,5,25,0)');
-    g.fillStyle = halo; g.beginPath(); g.arc(x, y, 150, 0, TAU); g.fill();
-    // anneaux et rayons de la station
-    g.strokeStyle = rgba('#b9a6ff', 0.35); g.lineWidth = 2;
-    for (const rr of [118, 104, 68, 40]) { g.beginPath(); g.arc(x, y, rr, 0, TAU); g.stroke(); }
-    g.strokeStyle = rgba('#b9a6ff', 0.18); g.lineWidth = 8;
-    g.beginPath(); g.arc(x, y, 111, 0, TAU); g.stroke();
-    for (let k = 0; k < 48; k++) {
-      const a = k * TAU / 48;
-      g.strokeStyle = rgba('#d8ccff', k % 6 === 0 ? 0.5 : 0.18); g.lineWidth = k % 6 === 0 ? 2 : 1;
-      g.beginPath(); g.moveTo(x + Math.cos(a) * 104, y + Math.sin(a) * 104); g.lineTo(x + Math.cos(a) * 118, y + Math.sin(a) * 118); g.stroke();
-    }
-    for (let k = 0; k < 6; k++) {
-      const a = k * TAU / 6 + 0.26;
-      g.strokeStyle = rgba('#8b5cff', 0.3); g.lineWidth = 5;
-      g.beginPath(); g.moveTo(x + Math.cos(a) * 40, y + Math.sin(a) * 40); g.lineTo(x + Math.cos(a) * 68, y + Math.sin(a) * 68); g.stroke();
-    }
-    g.restore();
-    // logement de l'œil de LUMEN
-    g.fillStyle = '#05030b';
-    g.beginPath(); g.arc(x, y, 30, 0, TAU); g.fill();
-    chrome(g, [[x + 31, y], ...Array.from({ length: 33 }, (_, i) => [x + Math.cos(i * TAU / 32) * 31, y + Math.sin(i * TAU / 32) * 31])], 3, { shadow: false });
-  }
-
   _portrait(g, x, y, who) {
     const col = who === 'lumen' ? C.cyan : C.red;
     g.save();
     g.translate(x, y);
-    g.scale(0.86, 0.86);
-    const glow = g.createRadialGradient(0, 0, 4, 0, 0, 70);
-    glow.addColorStop(0, rgba(col, 0.25)); glow.addColorStop(1, rgba(col, 0));
-    g.fillStyle = glow; g.beginPath(); g.arc(0, 0, 70, 0, TAU); g.fill();
+    g.scale(0.8, 0.8);
+    // médaillon Art déco : disque sombre, gradins, rayons, cerclage chromé vissé
+    const glow = g.createRadialGradient(0, 0, 4, 0, 0, 58);
+    glow.addColorStop(0, rgba(col, 0.28)); glow.addColorStop(1, rgba(col, 0));
+    g.fillStyle = glow; g.beginPath(); g.arc(0, 0, 58, 0, TAU); g.fill();
+    g.fillStyle = '#0a0716'; g.beginPath(); g.arc(0, 0, 37, 0, TAU); g.fill();
+    for (let k = 0; k < 16; k++) {
+      const a = k * TAU / 16;
+      g.strokeStyle = rgba(col, k % 2 ? 0.1 : 0.2); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(Math.cos(a) * 30, Math.sin(a) * 30); g.lineTo(Math.cos(a) * 36, Math.sin(a) * 36); g.stroke();
+    }
+    chrome(g, Array.from({ length: 41 }, (_, i) => [Math.cos(i * TAU / 40) * 38, Math.sin(i * TAU / 40) * 38]), 3, { glow: col });
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; screw(g, Math.cos(a) * 38, Math.sin(a) * 38, 1.8); }
+    g.scale(0.74, 0.74);
     g.lineJoin = 'round';
     if (who === 'lumen') {
       // casque arrondi, visière unique, antennes
@@ -416,7 +395,7 @@ export class TableArt {
       g.strokeStyle = rgba(col, 0.6); g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(-14, 16); g.lineTo(14, 16); g.stroke();
       g.beginPath(); g.moveTo(-30, -4); g.lineTo(-40, -22); g.moveTo(30, -4); g.lineTo(40, -22); g.stroke();
-      paint(g, 'LUMEN', 0, 50, 10, col, { font: DISPLAY });
+      paint(g, 'LUMEN', 0, 64, 11, col, { font: DISPLAY, spacing: 1 });
     } else {
       // casque anguleux, fentes rouges, parasites
       g.fillStyle = '#2a0f18';
@@ -429,13 +408,14 @@ export class TableArt {
       for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(-12 + k * 8, 18); g.lineTo(-12 + k * 8, 28); g.stroke(); }
       const rnd = mulberry32(7);
       for (let k = 0; k < 7; k++) { g.fillStyle = rgba(k % 2 ? C.cyan : col, 0.5); g.fillRect(-40 + rnd() * 70, -36 + rnd() * 70, 8 + rnd() * 18, 1.5); }
-      paint(g, 'NULL', 0, 50, 10, col, { font: DISPLAY });
+      paint(g, 'NULL', 0, 64, 11, col, { font: DISPLAY, spacing: 1 });
     }
     g.restore();
   }
 
   _insertsBase(g) {
     for (const id of Object.keys(ARROWS)) {
+      if (id === 'portal') continue;          // flèche du portail : en tête de la colonne du cadran
       const A = ARROWS[id];
       insertBase(g, 'arrow', A.x, A.y, 14, A.col, A.rot);
       const [cx, cy] = this._along(A, -27);
@@ -443,12 +423,13 @@ export class TableArt {
       const [mx2, my2] = this._along(A, 22);
       insertBase(g, 'circle', mx2, my2, 4.5, C.gold, 0);
     }
-    for (const it of RING_ITEMS) { const [x, y] = ringPos(it); insertBase(g, 'circle', x, y, 12, it.col); }
-    BONUSX.forEach(([x, y]) => insertBase(g, 'triangle', x, y, 11, C.cyan));
+    // le cadran : lentilles, bobines, jauge, lunette, colonne du noyau
+    this.dial.drawHardware(g);
     insertBase(g, 'circle', SAVE.x, SAVE.y, 13, C.red);
     for (const x of LANE_C) insertBase(g, 'circle', x, T.laneSensorY, 11, C.cyan);
-    BANK_INS.L.forEach(([x, y]) => insertBase(g, 'circle', x, y, 5, SECTORS.hangar.color));
-    BANK_INS.R.forEach(([x, y]) => insertBase(g, 'circle', x, y, 5, SECTORS.defense.color));
+    // banques : un chevron pour la face présentée du barillet de leur côté
+    BANK_INS.L.forEach(([x, y]) => insertBase(g, 'circle', x, y, 5, C.violet));
+    BANK_INS.R.forEach(([x, y]) => insertBase(g, 'circle', x, y, 5, C.violet));
     insertBase(g, 'arrow', 39, 812, 9, C.lime);
     insertBase(g, 'arrow', 80, 812, 7, C.cyan);
     insertBase(g, 'arrow', 482, 812, 7, C.cyan);
@@ -459,27 +440,15 @@ export class TableArt {
 
   _labels(g) {
     const lab = (s, x, y, size, col, rot) => paint(g, s, x, y, size, col, { font: DISPLAY, rot, alpha: 0.9 });
-    for (const id of Object.keys(ARROWS)) {
-      if (id === 'portal') continue;          // le portail porte déjà son nom sur son arche
+    for (const id of ['lorbit', 'rorbit']) {     // rampes : nom de la face présentée (dynamique)
       const A = ARROWS[id];
       const [x, y] = this._along(A, 36);
       lab(SHOTS[id].label, x, y, 9, rgba(A.col, 0.95));
     }
-    // étiquettes de l'anneau : à l'extérieur, sous l'insert pour les positions latérales
-    for (const it of RING_ITEMS) {
-      const [x, y] = ringPos(it);
-      const a = it.ang * Math.PI / 180;
-      const lateral = Math.abs(Math.cos(a)) > 0.9;
-      const lx = lateral ? x : RING.x + Math.cos(a) * (RING.r + 26);
-      const ly = lateral ? y + 21 : RING.y + Math.sin(a) * (RING.r + 22);
-      paint(g, it.label, lx, ly, 7.5, rgba(it.col, 0.95), { font: DISPLAY });
-    }
-    ['×2', '×3', '×4', '×5'].forEach((s, i) => paint(g, s, BONUSX[i][0], BONUSX[i][1] + 15, 8, '#bfefff', { font: DISPLAY }));
-    paint(g, 'BONUS', 281, 818, 8, rgba(C.cyan, 0.8), { font: DISPLAY, spacing: 2 });
     lab('ORBITE', 41, 290, 10, rgba(C.violet, 0.85), -Math.PI / 2);
     lab('ORBITE', 521, 290, 10, rgba(C.violet, 0.85), Math.PI / 2);
-    lab('HANGAR', 26, 620, 9, rgba(SECTORS.hangar.color, 0.9), -1.17);
-    lab('DÉFENSE', 536, 620, 9, rgba(SECTORS.defense.color, 0.9), 1.17);
+    lab('CHEVRON', 26, 620, 8, rgba(C.violet, 0.9), -1.17);
+    lab('CHEVRON', 536, 620, 8, rgba(C.violet, 0.9), 1.17);
     lab('LANCEMENT', 561, 900, 9, rgba(C.cyan, 0.6), -Math.PI / 2);
     lab('KICKBACK', 39, 846, 7, rgba(C.lime, 0.9), -Math.PI / 2);
     paint(g, 'C', LANE_C[0], T.laneSensorY + 1, 11, '#d8f7ff', { font: DISPLAY });
@@ -593,7 +562,7 @@ export class TableArt {
       g.fillStyle = '#1a1626'; g.font = `700 6.2px ${TEXT}`; g.textAlign = 'left';
       lines.forEach((l, i) => g.fillText(l, x + 4, y + 16 + i * 7.4));
     };
-    card(30, 1018, 112, 66, 'SECTEURS', ['3 cibles gauches → PONT : HANGAR', '3 tombantes → RAMPE : DÉFENSE', '4 cellules du pont → UPLINK', '3 secteurs → PORTAIL : NULL', 'C·P·U ×2 → MULTIBILLE'], C.violet);
+    card(30, 1018, 112, 66, 'SECTEURS', ['Rampe : +1 chevron sur sa face', '3 chevrons : le passage suivant', '   lance le minijeu de la face', 'Banques, cellules : +1 chevron', '3 secteurs réactivés : duel NULL', '1 000 000 pts = 1 vie'], C.violet);
     card(420, 1018, 112, 66, 'COMMANDES', ['← / A : batteurs gauches', '→ / D : batteurs droits', 'ESPACE : charger, lancer', 'ÉCHAP : pause', 'Les 2 niveaux jouent ensemble'], C.magenta);
     paint(g, 'SAUVEGARDE', SAVE.x, 1050, 6.5, '#ffb3c2', { font: DISPLAY, spacing: 1 });
     paint(g, 'LUMEN//NULL', 281, 1076, 15, '#e9f8ff', { font: DISPLAY, spacing: 1 });
@@ -648,77 +617,21 @@ export class TableArt {
   }
 
   // ============================================================ calque des rampes
+  // Partie fixe : ombres des prismes, bouches, vérins, carters, virage et descente de la rampe
+  // droite. Les prismes (barillets) sont dessinés par image (barrelArt.js).
   rampLayer(g, table) {
-    // rampe du pont (gauche) : plastique transparent teinté cyan
-    const gl = T.rampL;
-    this._plasticRamp(g, [[gl.x0, gl.mouthY + 14], [gl.x0, gl.deckY - 6], [gl.x1, gl.deckY - 6], [gl.x1, gl.mouthY + 14]], C.cyan, 'PONT', (gl.x0 + gl.x1) / 2, 330);
-    // rampe droite : montée en plastique, virage, descente en fil
-    const g2 = T.rampR;
-    const up = new Path2D();
-    up.moveTo(g2.upX0, g2.mouthY + 14); up.lineTo(g2.upX0, g2.topY);
-    up.arc(g2.turnCx, g2.topY, g2.turnR1, Math.PI, 0);
-    up.lineTo(g2.downX1, g2.topY + 30); up.lineTo(g2.downX0, g2.topY + 30);
-    up.arc(g2.turnCx, g2.topY, g2.turnR0, 0, Math.PI, true);
-    up.lineTo(g2.upX1, g2.mouthY + 14); up.closePath();
-    g.save(); g.translate(SHADOW.dx * 1.5, SHADOW.dy * 1.5); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fill(up); g.restore();
-    g.fillStyle = rgba(C.green, 0.14); g.fill(up);
-    g.strokeStyle = rgba('#eafff0', 0.6); g.lineWidth = 2.5; g.stroke(up);
-    g.strokeStyle = rgba(C.green, 0.8); g.lineWidth = 1; g.stroke(up);
-    paint(g, 'RAMPE', (g2.upX0 + g2.upX1) / 2, 330, 8, '#eafff0', { font: DISPLAY, rot: -Math.PI / 2 });
-    // descente en fil (rails chromés)
-    const mid = (g2.downX0 + g2.downX1) / 2;
-    wireRamp(g, [[mid, g2.topY + 24], [mid, g2.exitY - 10], [mid - 4, g2.exitY + 20]], g2.downX1 - g2.downX0, { glow: C.green });
-    // lèvres métalliques des entrées
-    for (const [x0, x1] of [[gl.x0, gl.x1], [g2.upX0, g2.upX1]]) {
-      chrome(g, [[x0, T.rampL.mouthY + 12], [x1, T.rampL.mouthY + 12]], 4, {});
-    }
-  }
-
-  // Rampe en plastique transparent : plancher qui s'éclaircit en montant, parois épaisses,
-  // nervures, autocollant, supports vissés et lèvre métallique à l'entrée.
-  _plasticRamp(g, pts, col, label, lx, ly) {
-    const x0 = pts[0][0], x1 = pts[2][0], yb = pts[0][1], yt = pts[1][1];
-    g.save(); g.translate(SHADOW.dx * 2, SHADOW.dy * 2); g.fillStyle = 'rgba(0,0,0,0.38)'; polyPath(g, pts, true); g.fill(); g.restore();
-    const fl = g.createLinearGradient(0, yb, 0, yt);
-    fl.addColorStop(0, rgba(col, 0.1)); fl.addColorStop(1, rgba(col, 0.26));
-    g.fillStyle = fl; polyPath(g, pts, true); g.fill();
-    // nervures du plancher
-    for (let y = yt + 24; y < yb - 10; y += 22) {
-      g.strokeStyle = 'rgba(255,255,255,0.09)'; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(x0 + 6, y); g.lineTo(x1 - 6, y); g.stroke();
-    }
-    // parois : tranche épaisse, reflet, liseré néon
-    for (const [x, dir] of [[x0, 1], [x1, -1]]) {
-      const wg = g.createLinearGradient(x - 3 * dir, 0, x + 6 * dir, 0);
-      wg.addColorStop(0, 'rgba(255,255,255,0.55)'); wg.addColorStop(0.4, rgba(col, 0.35)); wg.addColorStop(1, 'rgba(255,255,255,0.04)');
-      g.fillStyle = wg; g.fillRect(Math.min(x - 3 * dir, x + 6 * dir), yt, 9, yb - yt);
-      g.strokeStyle = rgba(col, 0.95); g.lineWidth = 1.2;
-      g.beginPath(); g.moveTo(x, yb); g.lineTo(x, yt); g.stroke();
-    }
-    // autocollant (flèche + nom)
-    const mx = (x0 + x1) / 2;
-    g.fillStyle = 'rgba(8,4,20,0.75)';
-    g.beginPath(); g.roundRect ? g.roundRect(mx - 12, ly - 34, 24, 68, 5) : g.rect(mx - 12, ly - 34, 24, 68); g.fill();
-    g.strokeStyle = rgba(col, 0.8); g.lineWidth = 1; g.stroke();
-    paint(g, label, mx, ly + 6, 8, '#e8fbff', { font: DISPLAY, rot: -Math.PI / 2 });
-    g.fillStyle = col;
-    g.beginPath(); g.moveTo(mx, ly - 30); g.lineTo(mx + 7, ly - 20); g.lineTo(mx - 7, ly - 20); g.closePath(); g.fill();
-    // supports vissés
-    for (const y of [160, 320]) {
-      g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(x0 - 9 + SHADOW.dx, y + SHADOW.dy, x1 - x0 + 18, 6);
-      chrome(g, [[x0 - 9, y], [x1 + 9, y]], 3.4, { shadow: false });
-      screw(g, x0 - 6, y, 1.8); screw(g, x1 + 6, y, 1.8);
-    }
-    // reflet général
-    g.strokeStyle = 'rgba(255,255,255,0.16)'; g.lineWidth = 2.5;
-    g.beginPath(); g.moveTo(x0 + 9, yb - 20); g.lineTo(x0 + 9, yt + 20); g.stroke();
+    this.barrels.staticLayer(g, table);
   }
 
   // ============================================================ rendu par image
   draw(ctx, table, game) {
     const r = this.r;
     const t = r.time;
+    const dt = Math.max(0, Math.min(0.1, t - this.lastT)); this.lastT = t;
+    this.fury += ((game.frenzy && !r.shut ? 1 : 0) - this.fury) * Math.min(1, dt * 3);
+    if (this.fury < 0.005) this.fury = 0;
     r.blitLayer(ctx, r.layer('table', (g) => this.staticLayer(g, table)));
+    if (this.fury > 0) this._furyLight(ctx, t);
     const lamps = table.shotLamps();
     this._inserts(ctx, table, game, lamps, t);
     if (!r.shut) this._eye(ctx, table, game);   // pendant l'extinction, dessiné par-dessus le voile
@@ -737,56 +650,83 @@ export class TableArt {
     r.drawFlipper(table.R.flipR, C.magenta);
     // deuxième niveau
     r.blitLayer(ctx, r.layer('tableDeck', (g) => this.deckLayer(g, table)));
+    if (this.fury > 0) { ctx.fillStyle = `rgba(70,0,14,${0.38 * this.fury})`; deckFloorPath(ctx, table.R); ctx.fill(); }
     this._deck(ctx, table, t);
     r.drawFlipper(table.R.deck.flipL, C.cyan);
     r.drawFlipper(table.R.deck.flipR, C.magenta);
     for (const b of table.world.balls) if (b.layer === 2) r.drawBall(b, 0);
-    // rampes
+    // rampes : partie fixe, puis les deux barillets
     r.blitLayer(ctx, r.layer('tableRamps', (g) => this.rampLayer(g, table)));
+    this.barrels.draw(ctx, table, game, t);
     this._rampLights(ctx, table, lamps, t);
+    this.dial.beam(ctx, table, t);              // aimant : rayon tracteur sous la bille en vol
     for (const b of table.world.balls) if (b.layer === 1) r.drawBall(b, 0);
+    this.dial.field(ctx, table, t);             // aimant : champ autour de la bille retenue
     this._flashers(ctx, table, game, t);
+    if (this.fury > 0) this._furyStrobe(ctx, t);
+  }
+
+  // FURIE (sous les lampes) : le plateau s'assombrit et rougit, éclairage général rouge qui respire.
+  _furyLight(ctx, t) {
+    const k = this.fury, rfx = this.r.settings.reducedFx;
+    ctx.fillStyle = `rgba(70,0,14,${0.36 * k})`;
+    ctx.fillRect(20, -150, 560, 1250);
+    const p = 0.55 + 0.45 * Math.sin(t * (rfx ? 2 : 5));
+    for (const [x, y, s] of [[281, 260, 460], [110, 760, 280], [452, 760, 280], [281, 672, 330], [281, 960, 300]]) this.r.glow(x, y, s, '#ff1030', 0.17 * k * p);
+  }
+
+  // FURIE (par-dessus tout) : gyrophares rouges qui balaient le plateau, stroboscope.
+  _furyStrobe(ctx, t) {
+    const r = this.r, k = this.fury, rfx = r.settings.reducedFx, still = rfx || r.settings.reducedMotion;
+    const spr = glowSprite('#ff2030', 64);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [x, y, ph] of BEACONS) {
+      const a = t * 4.2 + ph;
+      if (!still) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+        ctx.globalAlpha = 0.3 * k; ctx.drawImage(spr, 2, -24, 320, 48);
+        ctx.restore();
+      }
+      const on = still ? (Math.sin(t * 3 + ph) > 0 ? 1 : 0.3) : 0.55 + 0.45 * Math.cos(a);
+      ctx.globalAlpha = 0.9 * k * on; ctx.drawImage(spr, x - 28, y - 28, 56, 56);
+    }
+    if (!rfx) {
+      const s = Math.floor(t * 12);
+      if (s % 5 === 0 || s % 7 === 0) { ctx.globalAlpha = 0.07 * k; ctx.fillStyle = s % 2 ? '#ffffff' : '#ff2040'; ctx.fillRect(20, -150, 560, 1250); }
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    for (const [x, y] of BEACONS) {
+      ctx.fillStyle = '#1a1d28'; ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = Math.sin(t * 9 + x) > 0 ? '#ff6070' : '#c01028'; ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(x - 1.6, y - 1.8, 1.6, 0, TAU); ctx.fill();
+    }
   }
 
   _inserts(ctx, table, game, lamps, t) {
     for (const id of Object.keys(ARROWS)) {
-      const A = ARROWS[id], l = lamps[id];
+      const A = ARROWS[id], l = lamps[id], s = A.s || 14, portal = id === 'portal';
       const blink = l.blink ? (Math.sin(t * 9) > -0.2 ? 1 : 0.25) : 1;
       const col = l.color || A.col;
       let k = l.main === 'prep' ? 0.45 : l.main ? blink : 0;
       k = Math.max(k, table.shotFlash[id] || 0);
-      if (k > 0) { this.r.glow(A.x, A.y, 70, col, 0.55 * k); insertLit(ctx, 'arrow', A.x, A.y, 14, col, k, A.rot); }
-      const [cx, cy] = this._along(A, -27);
-      if (l.combo) { const kk = (Math.sin(t * 12) > 0) ? 1 : 0.35; insertLit(ctx, 'chevron', cx, cy, 8, '#ffffff', kk, A.rot); this.r.glow(cx, cy, 34, '#ffffff', 0.35 * kk); }
-      const [mx2, my2] = this._along(A, 22);
-      if (l.mission) insertLit(ctx, 'circle', mx2, my2, 4.5, C.gold, 0.6 + 0.4 * Math.sin(t * 6));
-      if (l.hold) this.r.text('⧗', A.x + 18, A.y - 10, 12, C.amber, 'center', 0.6 + 0.4 * Math.sin(t * 4));
+      if (k > 0) { this.r.glow(A.x, A.y, s * 5, col, 0.55 * k); insertLit(ctx, 'arrow', A.x, A.y, s, col, k, A.rot); }
+      const [cx, cy] = portal ? PORTAL_INS.combo : this._along(A, -27);
+      if (l.combo) { const kk = (Math.sin(t * 12) > 0) ? 1 : 0.35; insertLit(ctx, 'chevron', cx, cy, portal ? 5.5 : 8, '#ffffff', kk, A.rot); this.r.glow(cx, cy, 34, '#ffffff', 0.35 * kk); }
+      const [mx2, my2] = portal ? PORTAL_INS.mission : this._along(A, 22);
+      if (l.mission) insertLit(ctx, 'circle', mx2, my2, portal ? 3.4 : 4.5, C.gold, 0.6 + 0.4 * Math.sin(t * 6));
+      if (l.hold) this.r.text('⧗', A.x + (portal ? 30 : 18), A.y - 10, 12, C.amber, 'center', 0.6 + 0.4 * Math.sin(t * 4));
     }
-    // anneau d'état
-    const st = (id) => table.sectorState(id);
-    const ringK = {};
-    for (const id of ['hangar', 'reactor', 'defense', 'core']) {
-      const s = st(id);
-      ringK[id] = s === 'done' ? 1 : s === 'ready' ? (Math.sin(t * 8) > -0.3 ? 1 : 0.2) : s === 'hold' ? 0.35 + 0.25 * Math.sin(t * 3) : s === 'prep' ? 0.25 + 0.15 * Math.sin(t * 2) : 0;
-      ringK[id] = Math.max(ringK[id], table.sectors[id].flash > 0 ? (Math.sin(t * 20) > 0 ? 1 : 0) : 0);
+    // rampes : nom de la face présentée par le barillet (peint sous la flèche)
+    for (const [id, side] of [['lramp', 'L'], ['rramp', 'R']]) {
+      const [x, y] = this._along(ARROWS[id], 36);
+      const anim = table.barrels[side].anim, face = SECTORS[table.face(side)];
+      const name = anim ? 'ROTATION' : face.name;
+      const col = anim ? C.amber : face.color, size = name.length > 6 ? 7.6 : 9;
+      const sp = this.r.sprite(`rlab-${name}-${x}`, x - 42, y - 8, 84, 16, (g) => paint(g, name, x, y, size, col, { font: DISPLAY }));
+      this.r.drawSprite(ctx, sp, anim ? (Math.sin(t * 10) > 0 ? 1 : 0.45) : 0.95);
     }
-    ringK.multiball = table.multiball ? 1 : table.multiballLit ? (Math.sin(t * 8) > -0.3 ? 1 : 0.2) : 0;
-    ringK.super = table.superLit ? (Math.sin(t * 10) > 0 ? 1 : 0.2) : 0;
-    ringK.kickback = table.kickback.lit ? 1 : 0;
-    const m = game.missions.hud();
-    ringK.mission = m ? (m.timeLeft < 10 ? (Math.sin(t * 10) > 0 ? 1 : 0.3) : 0.85) : 0;
-    for (const it of RING_ITEMS) {
-      const k = ringK[it.id] || 0;
-      if (k <= 0.01) continue;
-      const [x, y] = ringPos(it);
-      const col = table.sectors[it.id] && st(it.id) === 'hold' ? C.amber : it.col;
-      this.r.glow(x, y, 54, col, 0.45 * k);
-      insertLit(ctx, 'circle', x, y, 12, col, k);
-    }
-    // multiplicateur de bonus
-    BONUSX.forEach(([x, y], i) => {
-      if (table.bonusX >= i + 2) { this.r.glow(x, y, 40, C.cyan, 0.35); insertLit(ctx, 'triangle', x, y, 11, C.cyan, 1); }
-    });
+    // le cadran : secteurs, chevrons, fonctions, jauge du million, colonne du noyau, FURIE
+    this.dial.draw(ctx, table, game, lamps, t);
     // sauvegarde (clignote à la fin)
     const B = game.bonus;
     if (B.saveT > 0) {
@@ -796,61 +736,20 @@ export class TableArt {
     }
     // couloirs de retour
     if (B.magnetT > 0) for (const x of [80, 482]) insertLit(ctx, 'arrow', x, 812, 7, C.green, 0.6 + 0.4 * Math.sin(t * 6));
-    // banques
-    BANK_INS.L.forEach(([x, y], i) => { const on = table.bankL[i]; const k = on ? 1 : table.bankFlash.L[i]; if (k > 0) { insertLit(ctx, 'circle', x, y, 5, SECTORS.hangar.color, k); this.r.glow(x, y, 26, SECTORS.hangar.color, 0.4 * k); } });
-    BANK_INS.R.forEach(([x, y], i) => { const on = table.drops[i]; const k = on ? 1 : table.bankFlash.R[i]; if (k > 0) { insertLit(ctx, 'circle', x, y, 5, SECTORS.defense.color, k); this.r.glow(x, y, 26, SECTORS.defense.color, 0.4 * k); } });
-    // délai restant du combo (barre sous le portail)
+    // banques : couleur de la face présentée du barillet de leur côté
+    const cL = SECTORS[table.face('L')].color, cR = SECTORS[table.face('R')].color;
+    BANK_INS.L.forEach(([x, y], i) => { const on = table.bankL[i]; const k = on ? 1 : table.bankFlash.L[i]; if (k > 0) { insertLit(ctx, 'circle', x, y, 5, cL, k); this.r.glow(x, y, 26, cL, 0.4 * k); } });
+    BANK_INS.R.forEach(([x, y], i) => { const on = table.drops[i]; const k = on ? 1 : table.bankFlash.R[i]; if (k > 0) { insertLit(ctx, 'circle', x, y, 5, cR, k); this.r.glow(x, y, 26, cR, 0.4 * k); } });
+    // délai restant du combo (barre sous la bouche du portail)
     if (table.combo.t > 0 && table.combo.count >= 1) {
       const u = table.combo.t / 4;
-      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(241, 478, 80, 3);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(241, 478, 80 * u, 3);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(256, 466, 50, 2.5);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(256, 466, 50 * u, 2.5);
     }
   }
 
-  // Œil de LUMEN au centre de l'emblème : suit la bille, rougit quand NULL parle.
-  // S (extinction de fin de partie) : LUMEN ferme l'œil, puis NULL ouvre le sien (pupille fendue).
-  _eye(ctx, table, game, S = null) {
-    const r = this.r, E = this.eye;
-    const { x, y } = RING;
-    const ball = table.world.balls.find(b => b.state === 'free') || table.world.balls[0];
-    let tx = 0, ty = 0;
-    if (ball) { const dx = ball.x - x, dy = ball.y - y, d = Math.hypot(dx, dy) || 1; tx = dx / d * 9; ty = dy / d * 7; }
-    E.x += (tx - E.x) * 0.15; E.y += (ty - E.y) * 0.15;
-    E.nextBlink -= 1 / 60;
-    if (E.nextBlink <= 0) { E.blink = 1; E.nextBlink = 2.5 + Math.random() * 4; }
-    E.blink = Math.max(0, E.blink - 0.12);
-    const msg = game.lumen.current;
-    const nullMode = msg && msg.persona === 'null';
-    let col = nullMode ? C.red : C.cyan;
-    let talk = msg ? 0.5 + 0.5 * Math.sin(r.time * 22) : 0;
-    let open = 1 - E.blink * 0.92, ex = E.x, ey = E.y, slit = false, gk = 1;
-    if (S) {
-      if (S.red > 0) {
-        col = C.red; open = S.red; slit = true; gk = 1.4 * S.red;
-        talk = 0.5 + 0.5 * Math.sin(r.time * 2.4);
-        ex = Math.sin(r.time * 0.6) * 7; ey = 0;
-        if (Math.random() < 0.05 && !r.settings.reducedFx) ex += (Math.random() - 0.5) * 10;
-      } else { col = C.cyan; open = Math.min(open, 1 - S.close); talk = 0; gk = open; }
-    }
-    r.glow(x, y, slit ? 110 + 170 * S.red : 110, col, (0.3 + 0.25 * talk) * gk);
-    if (open < 0.04) {
-      // paupière close : un simple trait
-      ctx.strokeStyle = rgba(col, 0.35); ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(x - 24, y); ctx.lineTo(x + 24, y); ctx.stroke();
-      return;
-    }
-    const iris = ctx.createRadialGradient(x + ex, y + ey, 1, x + ex, y + ey, 22);
-    iris.addColorStop(0, slit ? '#ffd0d8' : '#ffffff'); iris.addColorStop(0.25, col); iris.addColorStop(1, rgba(col, 0.05));
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(x, y, 27, 27 * open, 0, 0, TAU); ctx.clip();
-    ctx.fillStyle = '#04060c'; ctx.fillRect(x - 30, y - 30, 60, 60);
-    ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(x + ex, y + ey, 18 + talk * 3, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#02030a'; ctx.beginPath();
-    if (slit) ctx.ellipse(x + ex * 1.1, y + ey * 1.1, 2.6, 15, 0, 0, TAU); else ctx.arc(x + ex * 1.1, y + ey * 1.1, 5.5, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(x + ex - 6, y + ey - 7, 2.6, 0, TAU); ctx.fill();
-    ctx.restore();
-  }
+  // Œil de LUMEN au moyeu du cadran (dialArt.js). S : extinction de fin de partie.
+  _eye(ctx, table, game, S = null) { this.dial.eye(ctx, table, game, S); }
 
   _lanes(ctx, table, t) {
     for (let i = 0; i < 3; i++) {
@@ -861,8 +760,8 @@ export class TableArt {
   }
 
   _bankTargets(ctx, table, t) {
-    const col = SECTORS.hangar.color;
-    const ready = table.sectorState('hangar') === 'ready';
+    const face = table.face('L'), col = SECTORS[face].color;
+    const ready = table.sectorState(face) === 'ready';
     table.R.bankL.forEach((p, i) => {
       const on = table.bankL[i], fl = table.bankFlash.L[i];
       const cx = (p.ax + p.bx) / 2, cy = (p.ay + p.by) / 2;
@@ -880,7 +779,7 @@ export class TableArt {
   }
 
   _drops(ctx, table, t) {
-    const col = SECTORS.defense.color;
+    const col = SECTORS[table.face('R')].color;
     table.R.drops.forEach((p, i) => {
       const down = table.drops[i];
       const ang = Math.atan2(p.by - p.ay, p.bx - p.ax);
@@ -1013,8 +912,7 @@ export class TableArt {
     });
     // UPLINK : anneau lumineux, plus vif quand le réacteur est accessible
     const U = D.uplink;
-    const ready = table.sectorState('reactor') === 'ready';
-    const k = Math.max(table.uplink.flash, ready ? 0.6 + 0.4 * Math.sin(t * 7) : 0.25);
+    const k = Math.max(table.uplink.flash, 0.3 + 0.1 * Math.sin(t * 3));
     r.glow(U.x, U.y, 70, C.amber, 0.45 * k);
     ctx.strokeStyle = rgba(C.amber, 0.5 + 0.5 * k); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(U.x, U.y, U.r + 2, t * 2, t * 2 + 4.2); ctx.stroke();
@@ -1022,29 +920,30 @@ export class TableArt {
     if (table.deckFlashAll > 0) r.glow(281, 20, 260, C.magenta, table.deckFlashAll * 0.25);
   }
 
+  // Rampes : chevrons qui montent quand la rampe est accessible ou porte un jackpot ;
+  // halo du portail de secteur au sommet quand la face présentée est prête.
   _rampLights(ctx, table, lamps, t) {
     for (const side of ['L', 'R']) {
       const id = side === 'L' ? 'lramp' : 'rramp';
       const lamp = lamps[id];
-      const lit = lamp.main === 'mode' || lamp.main === 'jackpot' || lamp.main === 'prep';
+      const lit = lamp.main === 'mode' || lamp.main === 'jackpot';
       const fl = table.rampFlash[side];
+      const face = table.face(side), fcol = SECTORS[face].color;
       const x = side === 'L' ? (T.rampL.x0 + T.rampL.x1) / 2 : (T.rampR.upX0 + T.rampR.upX1) / 2;
       const top = side === 'L' ? T.rampL.deckY + 30 : T.rampR.topY + 10;
-      if (fl > 0) this.r.glow(x, (top + 470) / 2, 120, side === 'L' ? C.cyan : C.green, fl * 0.35);
+      if (fl > 0) this.r.glow(x, (top + 470) / 2, 120, fcol, fl * 0.35);
       if (!lit) continue;
-      const col = lamp.color || C.cyan;
-      for (let k = 0; k < 5; k++) {
-        const u = ((t * 1.3 + k / 5) % 1);
-        const yy = lerp(T.rampL.mouthY - 10, top, u);
+      const col = lamp.color || fcol;
+      for (let k = 0; k < 4; k++) {
+        const u = ((t * 1.3 + k / 4) % 1);
+        const yy = lerp(392, top, u);
         ctx.strokeStyle = rgba(col, 1 - u * 0.7);
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(x - 10, yy + 7); ctx.lineTo(x, yy - 3); ctx.lineTo(x + 10, yy + 7); ctx.stroke();
       }
-      // portail de secteur au sommet
-      const sector = side === 'L' ? 'hangar' : 'defense';
-      if (table.sectorState(sector) === 'ready') {
+      if (table.sectorState(face) === 'ready') {
         const rp = side === 'L' ? table.R.rampL : table.R.rampR;
-        this.r.glow(rp.portalX, rp.portalY, 90, SECTORS[sector].color, 0.5 + 0.3 * Math.sin(t * 6));
+        this.r.glow(rp.portalX, rp.portalY, 90, fcol, 0.5 + 0.3 * Math.sin(t * 6));
       }
     }
   }
@@ -1057,7 +956,12 @@ export class TableArt {
     if (table.rampFlash.L > 0.95) F.tl = 1;
     if (table.rampFlash.R > 0.95) F.tr = 1;
     this.lastScore = game.score;
-    const spots = [['tl', 44, -30, C.magenta], ['tr', 556, -30, C.cyan]];
+    if (game.frenzy) {
+      const st = Math.floor(t * (this.r.settings.reducedFx ? 1.5 : 9));
+      if (st !== this.strobe) { this.strobe = st; if (st % 2) F.tl = 1; else F.tr = 1; }
+    }
+    const fury = !!game.frenzy;
+    const spots = [['tl', 44, -30, fury ? '#ff2a3a' : C.magenta], ['tr', 556, -30, fury ? '#ff2a3a' : C.cyan]];
     for (const [k, x, y, col] of spots) {
       const v = F[k];
       const dome = ctx.createRadialGradient(x - 4, y - 5, 1, x, y, 13);

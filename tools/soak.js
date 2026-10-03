@@ -49,7 +49,7 @@ for (let gi = 0; gi < GAMES; gi++) {
     qualifyT += DT;
     if (qualifyT > 25 && g.scene === 'table') {
       qualifyT = 0;
-      const order = ['hangar', 'reactor', 'defense', 'core'];
+      const order = ['hangar', 'reactor', 'tag', 'defense', 'vault', 'arena', 'core'];
       const s = order.find(x => !t.sectors[x].done && t.sectorState(x) !== 'ready');
       if (s) g.debug('qualify', s);
       if (Math.random() < 0.15) t.multiballLit = true;

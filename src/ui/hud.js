@@ -1,12 +1,12 @@
-import { SECTORS, TABLE_W, TABLE_H } from '../config.js';
+import { SECTORS, MINI_SECTORS, RULES, TABLE_W, TABLE_H } from '../config.js';
 import { fmt } from '../util/math.js';
 import { saveSettings, save } from '../util/storage.js';
 import { DMD } from './dmd.js';
 import { GameOverSeq, scoreRows } from './gameover.js';
 
 const $ = (s) => document.querySelector(s);
-const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', defense: '⛨', core: '☠' };
-const STATE_TXT = { locked: 'VERROUILLÉ', prep: 'EN PRÉPARATION', ready: 'ACCESSIBLE', hold: 'EN ATTENTE', done: 'RÉACTIVÉ' };
+const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', tag: '✺', defense: '⛨', vault: '◈', arena: '◎', core: '☠' };
+const STATE_TXT = { locked: 'VERROUILLÉ', prep: 'EN PRÉPARATION', armed: 'QUALIFIÉ', ready: 'ACCESSIBLE', hold: 'EN ATTENTE', done: 'RÉACTIVÉ' };
 
 // Interface DOM : mise en page adaptative (portrait / paysage), HUD, bannières, écrans.
 export class UI {
@@ -374,6 +374,10 @@ export class UI {
       if (mg && game.scene === 'minigame') {
         const h = mg.hud();
         d.setMinigame({ title: h.title, timeLeft: h.timeLeft, timeLimit: h.timeLimit, progress: h.relaunch ? 'RELANCE' : h.progress, color: h.color });
+      } else if (game.frenzy && game.scene === 'table') {
+        // FURIE : chrono et billes en jeu sur l'afficheur, comme un minijeu
+        const F = game.frenzy;
+        d.setMinigame({ title: 'MODE FURIE', timeLeft: F.intro > 0 ? F.dur : F.t, timeLimit: F.dur, progress: `${F.kept} BILLES · MINIMUM ${F.need}`, color: '#ff3040' });
       } else d.setMinigame(null);
     }
     d.update(dt);
@@ -394,7 +398,7 @@ export class UI {
     if (c.best !== best) { c.best = best; e.hiscore.textContent = 'Record ' + fmt(best); }
     if (c.balls !== game.ballsLeft) {
       c.balls = game.ballsLeft;
-      const n = Math.max(3, game.ballsLeft);
+      const n = Math.max(game.maxBalls || 3, game.ballsLeft);
       const html = Array.from({ length: n }, (_, i) => `<i class="${i < game.ballsLeft ? '' : 'off'}"></i>`).join('');
       e.balls.innerHTML = html; e.balls2.innerHTML = html;
     }
@@ -443,10 +447,12 @@ export class UI {
     if (this.slowT > 0) return;
     this.slowT = 0.2;
     const t = game.table;
-    const sectorsHtml = ['hangar', 'reactor', 'defense', 'core'].map(id => {
+    const sectorsHtml = [...MINI_SECTORS, 'core'].map(id => {
       const st = t.sectorState(id), S = SECTORS[id];
       const p = st === 'done' ? 1 : t.sectorProgress(id);
-      const how = id === 'hangar' ? '3 cibles gauches → rampe du pont' : id === 'reactor' ? '4 cellules du pont → UPLINK' : id === 'defense' ? '3 cibles tombantes → rampe droite' : '3 secteurs → portail';
+      const side = S.barrel;
+      const how = !side ? `${RULES.coreNeeds} secteurs → portail`
+        : `${side === 'L' ? 'Rampe gauche' : 'Rampe droite'}${t.face(side) === id ? ' (face présentée)' : ''} · ${t.chevrons[id]}/${RULES.chevrons}`;
       return `<li class="${st}" style="--c:${S.color}"><span class="ic" style="color:${S.color}">${SECTOR_ICONS[id]}</span>` +
         `<span class="nm">${S.game}<small>${how}</small></span><span class="st" style="color:${st === 'hold' ? '#ffb52e' : st === 'locked' ? '#7f93b8' : S.color}">${STATE_TXT[st]}</span>` +
         `<span class="bar"><i style="width:${Math.round(p * 100)}%;background:${S.color}"></i></span></li>`;

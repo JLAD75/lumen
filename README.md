@@ -48,7 +48,8 @@ Le son démarre à la première interaction (contrainte des navigateurs). Les mu
 
 ### Réserve de billes
 
-- **3 billes pour toute la partie** (une bille supplémentaire peut être gagnée par les missions, réserve de 5 au maximum).
+- **3 billes pour toute la partie**, et **une vie de plus à chaque million de points** (les missions peuvent aussi en donner une). La réserve est plafonnée à 3 vies.
+- **Réserve pleine au passage d'un million : le MODE FURIE.** La machine s'énerve : l'éclairage passe au rouge et des billes tombent par les couloirs C·P·U jusqu'à **10 billes en jeu**. Il faut en garder **au moins 6 pendant 30 s** : la réserve s'agrandit alors d'une vie (4 vies, puis 5 à la FURIE suivante, etc.), et la vie est donnée tout de suite. Sinon, la FURIE s'arrête dès qu'il reste moins de 6 billes, et celles qui restent continuent en multibille. Pendant la FURIE, il n'y a pas de sauvegarde de bille, les jackpots sont allumés, et **un batteur tenu levé plus de 3 s surchauffe** : il rougit, retombe et reste bloqué une seconde, jusqu'à ce que la commande soit relâchée. L'afficheur montre le chrono et le nombre de billes.
 - **Une bille qui tombe dans un minijeu ne coûte rien** : le minijeu s'arrête (échec), la *même* bille revient sur le plateau principal par le portail, avec 4 s de protection. La progression du secteur est gardée pour la tentative suivante (briques détruites, vagues repoussées, séquences stabilisées, phase du duel).
 - **Bouclier** : s'il est chargé, il est consommé et la bille est relancée sur place dans le minijeu.
 - **Échec à l'objectif** (chrono écoulé, surcharge, coque détruite) : même retour au plateau.
@@ -68,22 +69,26 @@ Une séquence d'une vingtaine de secondes, que l'on peut passer avec Espace, Ent
 
 Le plateau a les proportions d'un vrai flipper (600 × 1 250 unités) et se joue sur trois couches physiques :
 
-1. **Le plateau** : deux batteurs, slingshots, couloirs de retour et extérieurs (kickback à gauche), orbites gauche et droite avec spinners, portail central, cibles debout HANGAR à gauche, cibles tombantes DÉFENSE à droite, 3 pop bumpers sous les couloirs C·P·U.
-2. **Les rampes** : la rampe du **pont** (gauche, en plastique) monte jusqu'au deuxième niveau ; la rampe droite fait un virage en U et redescend par une rampe en fil métallique jusqu'au couloir de retour droit. Les orbites passent *sous* le pont.
+1. **Le plateau** : deux batteurs, slingshots, couloirs de retour et extérieurs (kickback à gauche), orbites gauche et droite avec spinners, portail central, banque de 3 cibles debout à gauche, 3 cibles tombantes à droite, 3 pop bumpers sous les couloirs C·P·U, et au centre le **cadran** autour de l'œil de LUMEN (avec son aimant).
+2. **Les rampes à barillet** : la rampe gauche monte jusqu'au deuxième niveau ; la rampe droite fait un virage en U et redescend par une rampe en fil métallique jusqu'au couloir de retour droit. Chacune est un **barillet à trois faces** qui pivote pour présenter une autre rampe. Les orbites passent *sous* le pont.
 3. **Le pont supérieur** (deuxième niveau, en haut) : deux petits batteurs commandés par les mêmes touches, 4 **cellules** à toucher et l'éjecteur **UPLINK**. On y arrive par le lanceur ou par la rampe gauche ; la bille qui passe entre les petits batteurs retombe dans les couloirs C·P·U.
 
-### Accès aux secteurs (minijeux)
+### Accès aux secteurs : les rampes à barillet
 
-| Secteur | Qualification | Déclenchement | Minijeu |
-|---|---|---|---|
-| HANGAR (cyan) | 3 cibles debout gauches | Rampe du pont (gauche) | Casse‑briques orbital |
-| RÉACTEUR (orange) | 4 cellules du pont | Éjecteur UPLINK, sur le pont | Réacteur instable |
-| DÉFENSE (vert) | 3 cibles tombantes droites | Rampe droite | Défense de la station |
-| NOYAU (rouge) | 3 secteurs réactivés | Portail central | Duel contre NULL |
+Chaque rampe est un prisme à trois faces, comme les panneaux publicitaires rotatifs. La face présentée est une rampe différente (matière, couleur, décor), et elle mène à son propre minijeu :
 
-L'**anneau d'inserts** autour de l'œil de LUMEN (comme l'anneau de missions des vrais flippers), les flèches lumineuses devant chaque tir, l'encart « Prochain objectif » et les panneaux latéraux affichent l'état de chaque secteur : éteint, en préparation, accessible (clignote), **en attente** (ambre) pendant une multibille, ou réactivé (allumé fixe).
+| Rampe | Faces, dans l'ordre de rotation |
+|---|---|
+| Gauche (vers le pont) | HANGAR (cyan) : Casse‑briques orbital → RÉACTEUR (orange) : Singularité → GRAFFITI (jaune acide) : Fresque néon |
+| Droite (virage en U) | DÉFENSE (vert) : Défense de la station → COFFRE (violet) : Braquage du coffre → ARÈNE (bleu) : Cyberball |
 
-**Pendant une multibille**, les accès aux minijeux sont mis en attente jusqu'au retour à une seule bille. Ils restent débloqués.
+- **Chevrons** : chaque passage sur une rampe allume un chevron de la face présentée. La banque de 3 cibles gauches en ajoute un à gauche, les 3 cibles tombantes un à droite, les 4 cellules du pont et l'éjecteur UPLINK un de chaque côté. Avec **3 chevrons**, le minijeu est accessible (la flèche de la rampe clignote à la couleur du secteur) et le passage suivant l'emporte.
+- **Rotation** : une face trop utilisée (5 passages, 2 si son secteur est déjà réactivé) ou dont le minijeu vient d'être joué fait **pivoter le barillet** vers la face suivante. Le mouvement est celui d'une machine : déverrouillage des vérins, rotation en trois crans, verrouillage. Pendant ce temps, le volet de la rampe est fermé et **l'aimant de l'œil** attire la bille, la retient au centre du cadran puis la relâche vers un batteur avec 3 s de protection. Une face qui s'en va garde ses chevrons : elle reste « qualifiée » jusqu'à son retour.
+- **NOYAU (rouge)** : 3 secteurs réactivés, puis le portail central → Duel contre NULL.
+
+Le **cadran** autour de l'œil de LUMEN, les flèches lumineuses devant chaque tir, l'encart « Prochain objectif » et les panneaux latéraux affichent l'état de chaque secteur : éteint, en préparation, qualifié (face non présentée), accessible (clignote), **en attente** (ambre) pendant une multibille ou une FURIE, ou réactivé (allumé fixe). Le cadran montre aussi la jauge du prochain million.
+
+**Pendant une multibille ou une FURIE**, les accès aux minijeux sont mis en attente jusqu'au retour à une seule bille. Ils restent débloqués.
 
 ### Règles du plateau
 
@@ -91,7 +96,7 @@ L'**anneau d'inserts** autour de l'œil de LUMEN (comme l'anneau de missions des
 - **Couloirs C·P·U** sous le pont : chaque série complète augmente le bonus de fin de bille. Deux séries allument la **multibille « Réplication du noyau »** au portail. Les batteurs décalent les lumières des couloirs.
 - **Skill shot** : avant le lancer, les batteurs choisissent la cellule clignotante du pont ; touchez‑la avec les petits batteurs peu après le lancer.
 - **Combos** : des tirs majeurs différents (orbites, rampes, portail, UPLINK) enchaînés en moins de 4 s. Les chevrons blancs indiquent les tirs qui prolongent le combo.
-- **Kickback** : allumé en début de partie ; il renvoie une fois la bille du couloir extérieur gauche. Les 4 cellules du pont le rallument.
+- **Kickback** : allumé en début de partie ; il renvoie une fois la bille du couloir extérieur gauche. Les 4 cellules du pont le rallument (et ajoutent un chevron à chaque barillet).
 - **Missions de LUMEN** : objectifs chronométrés (rampes, bumpers, boucles, cibles, pont, UPLINK, spinners…). Elles rapportent des points, un aimant, un multiplicateur, et une bille supplémentaire toutes les 3 missions.
 - **Jackpots** : pendant la multibille, rampes et orbites sont allumées ; les 4 jackpots débloquent le **super jackpot** au portail.
 - **Sauvegarde de bille** : quelques secondes après chaque lancement (8 s, puis 6 et 5 s aux niveaux suivants) ; l'insert SAUVEGARDE s'allume.
@@ -115,7 +120,7 @@ Garde‑fous contre le gain infini :
 - Après un échec, il faut requalifier le secteur.
 - Les effets du plateau sont gelés pendant les minijeux.
 
-### Les quatre minijeux
+### Les sept minijeux
 
 Tous se jouent avec la bille du flipper : c'est la même bille (même identifiant) qui traverse le portail. Les effets compatibles la suivent (bouclier, multiplicateur, noyau phasique). Chaque minijeu commence par un avantage d'entrée annoncé et par une barrière de protection de quelques secondes. Un écran intégré au‑dessus de l'arène affiche le titre, la progression et le chrono.
 
@@ -124,15 +129,29 @@ Tous se jouent avec la bille du flipper : c'est la même bille (même identifian
    - Deux murs de briques néon (« Rideau néon », puis « Herse descendante » qui descend lentement) : briques normales, blindées, explosives (en chaîne), chromées indestructibles, briques à capsule. Objectif : les **6 verrous dorés** (3 par mur), auxquels mènent des veines d'explosifs.
    - Capsules : LARGE, LASER, AIMANT, RALENTI, PERFO, +8 s, ×2, JACK, ÉCHO (deux billes holographiques temporaires, jamais comptées comme la vraie bille).
    - Récompense : jackpot de rampe, noyau phasique, multiplicateur ×2 si la capsule ×2 a été attrapée.
-2. **Réacteur instable** (90 s, batteurs)
-   - Touchez les nœuds dans l'ordre affiché (1 → 2 → 3…) sur 3 séquences de plus en plus longues.
-   - Rotors tournants et drones stabilisateurs gênent les tirs. Un mauvais nœud fait monter l'instabilité ; à 100 %, c'est l'échec.
-   - Récompense : bouclier et bumpers +1 niveau.
-3. **Défense de la station** (100 s, batteurs)
+2. **Singularité** (secteur RÉACTEUR, 80 s, batteurs)
+   - Le cœur du réacteur s'est effondré en micro‑trou noir, au centre de l'arène : son attraction courbe la trajectoire de la bille. 9 cellules d'énergie gravitent sur 3 orbites en sens alternés ; l'orbite intérieure, qui frôle l'horizon, vaut double. On récolte une cellule en la touchant ; elle se recharge en 3 s. Il en faut 21 (24, puis 27 aux niveaux suivants).
+   - À chaque tiers récolté, la singularité grossit (attraction plus forte) et le palier est acquis. Une bille happée par l'horizon est recrachée sur un batteur, protégée par une barrière, contre une cellule perdue.
+   - **Fronde gravitationnelle** : un tour de plus de 300° autour du trou sans rien toucher récolte toute l'orbite balayée (une jauge montre le tour en cours).
+   - **Stabilisation** : la récolte faite, les cellules alimentent l'anneau de confinement ; frapper la singularité la fait imploser.
+   - Récompense : bouclier, bumpers +1 niveau, et un multiplicateur après une fronde réussie.
+3. **Fresque néon** (secteur GRAFFITI, 70 s, batteurs)
+   - NULL a couvert le mur de la station d'affiches grises (« OBÉISSEZ », « NULL VOUS VOIT »…). La bille y laisse une traînée de peinture néon arc‑en‑ciel, plus large à grande vitesse, qui révèle une grande fresque cachée (différente à chaque niveau). Objectif : peindre **70 % du mur**.
+   - Les 3 bumpers sont des bombes de peinture (grosses éclaboussures). Des drones nettoyeurs effacent la peinture ; les percuter les étourdit. Capsule AÉROSOL : trait doublé 6 s. Paliers à 25, 50 et 70 %.
+   - Victoire : la fresque s'illumine et LUMEN la signe. Récompense : multiplicateur, bumpers +1, aimant si la victoire est rapide.
+4. **Défense de la station** (100 s, batteurs)
    - Les drones descendent vers la ligne de défense. Pas besoin de les viser : touchez les **3 tourelles**, elles tirent seules sur le drone le plus dangereux. Les 3 tourelles en 5 s déclenchent une **salve** ; la bille au sommet du dôme déclenche le **canon orbital**. Toucher un drone avec la bille reste possible (dégâts doublés).
    - 3 vagues, dont un porte‑drones à point faible. Un drone qui franchit la ligne endommage la coque.
    - Récompense : multibille différée et une prime par vague repoussée.
-4. **Duel contre NULL** (120 s, batteurs)
+5. **Braquage du coffre** (secteur COFFRE, 90 s, batteurs)
+   - Le coffre‑fort de NULL : un noyau doré entouré d'anneaux blindés qui tournent en sens alternés. Un impact fissure une plaque, le second l'arrache ; un tir puissant l'arrache d'un coup. Passer toutes les brèches jusqu'au noyau = **COFFRE PERCÉ** : lingots et pièces à ramasser, +5 s.
+   - Trois coffres de plus en plus blindés et rapides (ALPHA, BÊTA, OMÉGA). **Alignement** : quand toutes les brèches s'alignent face aux batteurs, un laser de visée s'allume ; percer dans l'axe vaut un JACKPOT.
+   - Récompense : multiplicateur, et un jackpot de rampe après un JACKPOT.
+6. **Cyberball** (secteur ARÈNE, 75 s, batteurs)
+   - Un stade néon : marquez **5 buts** contre le drone gardien de NULL, qui anticipe la trajectoire avec un temps de réaction. Deux défenseurs patrouillent au milieu.
+   - Un tir puissant assomme le gardien (but ouvert). POTEAU, LUCARNE (but contre un montant, points ×2), corners qui renvoient la bille en centre devant le but. Chaque but : ralenti, feux d'artifice, clameur ; NULL se renforce ensuite (gardien plus vif, défenseur supplémentaire, pressing).
+   - Récompense : multiplicateur et aimant.
+7. **Duel contre NULL** (120 s, batteurs)
    - Phase 1 : détruire les 2 générateurs. Phase 2 : frapper le noyau à travers les brèches d'un anneau tournant. Phase 3 : NULL se déplace, protégé par deux plaques.
    - Les attaques sont toujours annoncées (pointillés clignotants, flèches) : pare‑feu temporaires, sentinelles en orbite, distorsion de gravité.
    - Récompense : jackpot majeur, une amélioration durable, puis **niveau de sécurité +1**. Les secteurs se reverrouillent et la partie continue plus difficile : gravité +3 %, sauvegarde plus courte, minijeux plus rapides et plus résistants.
@@ -175,13 +194,15 @@ src/game/                  game.js (états, scènes, réserve de billes, score, 
                            transition.js (portail ↔ minijeu)
 src/minigames/             base.js (cycle de vie, chute = retour au plateau, progression gardée)
                            arena.js (arènes à batteurs), breakout.js + breakoutArt.js,
-                           reactor.js, defense.js, duel.js
+                           singularity.js + singularityArt.js, graffiti.js + graffitiArt.js,
+                           defense.js, vault.js + vaultArt.js, cyberball.js + cyberballArt.js, duel.js
 src/render/                renderer.js (caméra, scènes, calques, écran des minijeux)
-                           tableArt.js (habillage du plateau), artKit.js (chrome, plastiques, inserts)
+                           tableArt.js (habillage du plateau), dialArt.js (cadran central),
+                           barrelArt.js (rampes à barillet), artKit.js (chrome, plastiques, inserts)
                            postfx.js (bloom, glitch), backdrop.js (mégapole animée)
                            fx.js (particules, arcs, balayages), sprites.js
 src/audio/                 engine.js (bus, polyphonie, aiguillage musical), soundtrack.js (morceaux MP3),
-                           sfx.js (+ sfx-breakout.js, sfx-defense.js), music.js, voice.js, ambience.js
+                           sfx.js (+ un fichier sfx-*.js par minijeu), music.js, voice.js, ambience.js
 assets/music/              bande-son (MP3)
 src/input/input.js         clavier + multitouch + annulations
 src/ui/hud.js              HUD DOM adaptatif portrait/paysage, vue inclinée, panneaux
@@ -200,7 +221,7 @@ tools/dev/                 démonstrations isolées de l'afficheur et des effets
 - **Éléments du plateau** : bumpers musicaux joués dans l'accord en cours, spinners dont le cliquetis suit la vitesse de rotation, cibles tombantes et leur remontée, kickback, entrée et chute du pont, éjecteur UPLINK.
 - **Montées sonores** pour les combos, signatures distinctes pour les portails, bonus, jackpots et pertes de bille ; sons dédiés du casse‑briques (laser, éclats, murs) et de la défense (tourelles, salve, canon orbital).
 - **Bande‑son enregistrée** (`assets/music/*.mp3`) : un morceau par moment du jeu (accueil, plateau, multibille, chaque minijeu, fin de partie), lu en flux sur deux platines qui alternent pour des fondus enchaînés. Le morceau du plateau reprend où il s'était arrêté, les volumes sont égalisés, et l'ambiance de la station se tait pendant ces morceaux.
-- **Musique électronique adaptative** (repli si un morceau manque) : 7 modes avec chacun son tempo et sa tonalité. Des couches s'activent selon l'intensité (combos, multibille), la tension (dernière bille, chrono) ajoute des éléments, et le tempo augmente avec le niveau.
+- **Musique électronique adaptative** (repli si un morceau manque) : 10 modes avec chacun son tempo et sa tonalité. Des couches s'activent selon l'intensité (combos, multibille), la tension (dernière bille, chrono) ajoute des éléments, et le tempo augmente avec le niveau.
 - **Voix robotique de LUMEN** (formants modulés) et **voix saturée de NULL**. La musique baisse pendant qu'elles parlent.
 - **Réglages** : volumes séparés et mode muet, sauvegardés localement.
 
@@ -211,9 +232,13 @@ tools/dev/                 démonstrations isolées de l'afficheur et des effets
 ### Tests automatisés (Node, sans navigateur)
 
 ```bash
-node tools/sim-tests.js          # 112 vérifications, toutes réussies
-node tools/test-breakout.js      # casse-briques : 72 vérifications + parties de robots
-node tools/test-defense.js       # défense : 91 vérifications + parties de robots
+node tools/sim-tests.js          # plateau, barillets, aimant, FURIE, les 7 minijeux
+node tools/test-breakout.js      # casse-briques + parties de robots
+node tools/test-singularity.js   # singularité
+node tools/test-graffiti.js      # fresque néon
+node tools/test-defense.js       # défense
+node tools/test-vault.js         # braquage du coffre
+node tools/test-cyberball.js     # cyberball
 node tools/table-geometry.js     # lancer, tirs depuis le berceau, pont, robustesse, blocages
 node tools/shot-map.js           # carte des tirs depuis le berceau et en mouvement
 node tools/soak.js 6 600         # endurance : 6 parties de 10 min
@@ -224,21 +249,24 @@ node tools/soak.js 6 600         # endurance : 6 parties de 10 min
   - avec un bouclier, la même bille est relancée dans le minijeu ;
   - la progression est mémorisée puis reprise à la tentative suivante ;
   - une chute avec une seule bille en réserve ne termine pas la partie ;
-  - ces points sont vérifiés sur les 4 minijeux.
+  - ces points sont vérifiés sur les 7 minijeux ; au retour, le barillet joué pivote pendant que l'aimant retient la bille.
 - **Continuité de la bille** : même identifiant à l'entrée et à la sortie, aucun doublon, la bille en attente de relance est servie au lanceur si le chrono expire.
 - **Plateau à trois niveaux** :
   - un lancer franc mène toujours au pont supérieur ;
   - une bille lâchée sur le pont redescend toujours (30/30) ;
   - les petits batteurs atteignent cellules et UPLINK ;
-  - les 4 cellules ouvrent le Réacteur à l'UPLINK ;
+  - les 4 cellules et l'UPLINK ajoutent un chevron sur chaque barillet ;
   - l'UPLINK retient puis renvoie la bille ;
   - les cibles tombantes s'abattent et se relèvent ;
   - le kickback renvoie la bille une fois.
 - **Physique** : 600 billes lancées sur le plateau, les orbites et le pont à des vitesses aléatoires : aucune n'a traversé un mur ni ne s'est bloquée. Recensement des immobilisations : 1 500 billes lâchées dans toutes les zones accessibles, batteurs au repos : aucune micro‑vibration ni secousse nécessaire. Depuis le berceau, rampes, portail, cibles et bumpers sont atteignables comme sur l'ancien plateau.
 - **Multibille, bonus, pause** : accès mis en attente puis rétablis, plafonds et cumuls des bonus, simulation figée en pause.
+- **Barillets et aimant** : 3 passages ouvrent le minijeu de la face, le 4e le lance ; 5 passages en attente font pivoter le barillet (volet fermé, face suivante, chevrons gardés) ; la bille relâchée par l'aimant tombe sur un batteur dans 24 cas sur 24.
+- **Vie au million et FURIE** : une vie au million ; réserve pleine → 10 billes ; pas de réinjection pendant la FURIE ; surchauffe d'un batteur tenu plus de 3 s puis retour à la normale ; réussite (réserve portée à 4) et échec (multibille qui continue) ; 20 s de FURIE automatique sans erreur de comptabilité.
 - **Robots des minijeux** :
   - Casse‑briques : des robots de niveaux variés gagnent environ la moitié des parties, sans bille coincée ni sortie de l'arène. Le temps passé près des murs est passé de 38 % à 22 %.
   - Défense : un robot simple gagne 100 % des parties avec une bille infinie. Avec les vraies règles, il réussit en 3 tentatives dans 60 à 77 % des cas (progression gardée).
+  - Singularité, Fresque néon, Coffre, Cyberball : chaque banc vérifie que tous les objectifs sont atteignables par des tirs de batteurs (recensement de milliers de tirs) et qu'aucune bille ne reste immobile ou enfermée (de 360 à 3 000 billes lâchées partout, batteurs au repos). Avec les vraies règles, un robot qui frappe au hasard gagne au niveau 1 entre 20 et 70 % des parties selon le minijeu, et en 3 tentatives au plus (progression gardée) entre 70 et 97 %.
 - **Endurance** : environ 390 000 pas de simulation, jusqu'au niveau 6 et 21 victoires contre NULL, sans exception, sans bille dupliquée, sans valeur invalide.
 - **Revue croisée** : 5 relecteurs et 5 vérificateurs indépendants ont relu la refonte ; les défauts confirmés (exports perdus dans la version fichier unique, passage sous les petits batteurs du pont, porte du lanceur, annonces de secteur, messages d'échec, affichage) ont été corrigés et, pour la plupart, couverts par un test.
 
@@ -248,7 +276,7 @@ node tools/soak.js 6 600         # endurance : 6 parties de 10 min
   - grand écran 1024×768 avec panneaux et afficheur à points ;
   - smartphone en portrait 375×812, avec l'afficheur dans le bandeau supérieur ;
   - paysage 844×390, en vue à plat avec caméra de suivi.
-- Les 4 arènes avec leur écran intégré. Le casse‑briques à plafond plat et la défense aux batteurs sont vérifiés à l'écran.
+- Les 7 arènes avec leur écran intégré, en bureau et en portrait 375×812 ; le cadran, la rotation des barillets avec l'aimant, et la FURIE sur le plateau. Le casse‑briques à plafond plat et la défense aux batteurs sont vérifiés à l'écran.
 - Ambiances : multibille (bords magenta, cadre néon, balayage), Duel (mégapole et bords rouges, glitchs).
 - **Musiques** : les 8 morceaux se chargent ; plateau → multibille → casse‑briques → plateau vérifié (fondus, reprise de position, musique procédurale et ambiance coupées pendant les morceaux).
 - **Fin de partie** : séquence complète, saisie des initiales et tableau des scores vérifiés à 1280×800, 375×812, 844×390, 667×375 et 360×640.
@@ -267,7 +295,8 @@ node tools/soak.js 6 600         # endurance : 6 parties de 10 min
 ## Débogage
 
 Ajoutez `?debug` à l'adresse pour afficher le nombre d'images par seconde, les sous‑pas physiques, le nombre de billes et les erreurs de comptabilité. La console expose `__LN`, par exemple :
-- `__LN.debug('start', 'hangar' | 'reactor' | 'defense' | 'core')`
+- `__LN.debug('start', 'hangar' | 'reactor' | 'tag' | 'defense' | 'vault' | 'arena' | 'core')`
+- `__LN.game.table.pivot('L', 'overuse', bille)` (rotation d'un barillet), `__LN.game.startFrenzy()` (FURIE)
 - `__LN.debug('qualify', 'hangar')`
 - `__LN.debug('multiball')`
 - `__LN.debug('win')`

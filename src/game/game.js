@@ -1,4 +1,5 @@
-import { PHYS, RULES, SECTORS, TABLE_W, TABLE_H } from '../config.js';
+import { PHYS, RULES, SECTORS, MINI_SECTORS, TABLE_W, TABLE_H } from '../config.js';
+import { fmt } from '../util/math.js';
 import { Table } from './table.js';
 import { BonusManager } from './bonus.js';
 import { Missions } from './missions.js';
@@ -6,17 +7,24 @@ import { Lumen } from './lumen.js';
 import { Transition } from './transition.js';
 import { Ball } from '../physics/ball.js';
 import { BreakoutGame } from '../minigames/breakout.js';
-import { ReactorGame } from '../minigames/reactor.js';
+import { SingularityGame } from '../minigames/singularity.js';
+import { GraffitiGame } from '../minigames/graffiti.js';
 import { DefenseGame } from '../minigames/defense.js';
+import { VaultGame } from '../minigames/vault.js';
+import { CyberballGame } from '../minigames/cyberball.js';
 import { DuelGame } from '../minigames/duel.js';
 import { Scores } from '../util/storage.js';
 
-const MINIGAMES = { hangar: BreakoutGame, reactor: ReactorGame, defense: DefenseGame, core: DuelGame };
+const MINIGAMES = {
+  hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame,
+  defense: DefenseGame, vault: VaultGame, arena: CyberballGame, core: DuelGame,
+};
 
 // Statistiques de la partie (rapport de fin de session)
 const newStats = () => ({
   minigamesWon: 0, minigamesPlayed: 0, bossWins: 0,
   jackpots: 0, superJackpots: 0, multiballs: 0, bestCombo: 0, skillShots: 0, missions: 0, extraBalls: 0, time: 0,
+  frenzies: 0, frenzyWins: 0,
 });
 
 // Orchestrateur : états de partie, scènes (plateau / transition / minijeu),
@@ -41,6 +49,10 @@ export class Game {
     this.clock = 0;
     this.score = 0;
     this.ballsLeft = RULES.startBalls;
+    this.maxBalls = RULES.startBalls;  // réserve maximale (agrandie par une FURIE réussie)
+    this.nextLifeAt = RULES.lifeEvery; // prochain million : une vie (ou la FURIE si la réserve est pleine)
+    this.frenzy = null;                // FURIE en cours : { intro, t, dur, need, kept }
+    this.pendingFrenzy = 0;
     this.level = 1;
     this.extraBallsThisLevel = 0;
     this.camera = { x: TABLE_W / 2, y: TABLE_H / 2, zoom: 1 };
@@ -64,6 +76,10 @@ export class Game {
   newGame() {
     this.score = 0;
     this.ballsLeft = RULES.startBalls;
+    this.maxBalls = RULES.startBalls;
+    this.nextLifeAt = RULES.lifeEvery;
+    this.frenzy = null;
+    this.pendingFrenzy = 0;
     this.level = 1;
     this.extraBallsThisLevel = 0;
     this.bonus.reset();
@@ -84,6 +100,7 @@ export class Game {
     this.input.swallow();
     this.music.setMode('table');
     this.music.setFlag('multiball', false);
+    this.music.setFlag('frenzy', false);
     this.ui.onGameStart();          // l'afficheur passe en mode jeu avant la première réplique
     this.say('gameStart');
   }
@@ -106,6 +123,8 @@ export class Game {
   }
 
   quitToTitle() {
+    this.frenzy = null;
+    this.music.setFlag('frenzy', false);
     this.state = 'title';
     this.input.releaseAll();
     this.audio.setPaused(false);
@@ -147,8 +166,10 @@ export class Game {
     this.stats.time += dt;
     this.bonus.paused = this.scene !== 'table';
     this.bonus.update(dt);
+    this._lives();
     if (this.scene === 'table') {
       this.table.update(dt, inp);
+      this._updateFrenzy(dt);
       this.missions.update(dt);
       if (this.betweenBalls > 0) {
         this.betweenBalls -= dt;
@@ -179,6 +200,7 @@ export class Game {
     if (this.scene === 'table') {
       intensity += Math.min(0.3, t.combo.count * 0.07);
       if (t.multiball) intensity = 0.9;
+      if (this.frenzy) { intensity = 1; tension = 0.6; }
       if (this.ballsLeft === 1) tension = 0.35;
     } else if (this.minigame) {
       intensity = 0.75;
@@ -245,6 +267,10 @@ export class Game {
       case 'ballLost': r.glitch(0.8, 0.4); break;
       case 'levelUp': r.pulse('#ff3d6e', 1.2); r.glitch(0.4, 0.3); break;
       case 'gameOver': r.glitch(1, 0.6); break;
+      case 'pivot': r.pulse(d.color || '#ffb52e', 0.6); break;
+      case 'frenzy': r.pulse('#ff3040', 1.4); r.glitch(0.7, 0.45); break;
+      case 'frenzyWin': r.pulse('#5dff8f', 1.3); break;
+      case 'frenzyFail': r.glitch(0.5, 0.3); break;
     }
   }
   // Compteurs du rapport de fin de session (chaque annonce n'est émise qu'une fois).
@@ -257,6 +283,8 @@ export class Game {
       case 'skillShot': s.skillShots++; break;
       case 'missionDone': s.missions++; break;
       case 'extraBall': s.extraBalls++; break;
+      case 'frenzy': s.frenzies++; break;
+      case 'frenzyWin': s.frenzyWins++; break;
       case 'combo': s.bestCombo = Math.max(s.bestCombo, d.n || 0); break;
     }
   }
@@ -277,8 +305,86 @@ export class Game {
     if (prim && prim.flash !== undefined && impact > 200) prim.flash = 1;
   }
 
+  // Une vie à chaque million de points ; réserve déjà pleine = FURIE (dès que le plateau le permet).
+  _lives() {
+    if (this.state !== 'play') return;
+    while (this.score >= this.nextLifeAt) {
+      const m = this.nextLifeAt;
+      this.nextLifeAt += RULES.lifeEvery;
+      if (this.ballsLeft < this.maxBalls) {
+        this.ballsLeft++;
+        this.sfx('extraBall');
+        this.banner('VIE SUPPLÉMENTAIRE', `${fmt(m)} points atteints`, '#5dff8f', 2.4, 'extraBall');
+        this.say('extraLife');
+        this.ui.flashBalls();
+      } else this.pendingFrenzy++;
+    }
+    if (this.pendingFrenzy > 0 && !this.frenzy) this._tryFrenzy();
+  }
+
+  _tryFrenzy() {
+    const t = this.table;
+    if (this.scene !== 'table' || this.betweenBalls > 0 || t.lockedOut || t.magnet || t.shooterBall) return;
+    if (t.barrels.L.anim || t.barrels.R.anim || t.anims.length) return;
+    if (!t.world.balls.some(b => b.state === 'free')) return;
+    this.pendingFrenzy--;
+    this.startFrenzy();
+  }
+
+  // FURIE : la machine s'énerve et lâche des billes jusqu'à RULES.frenzyBalls en jeu.
+  // En garder au moins RULES.frenzyKeep jusqu'au bout agrandit la réserve d'une vie.
+  // Pendant la FURIE : pas de sauvegarde, jackpots allumés, batteurs qui surchauffent.
+  startFrenzy() {
+    const t = this.table;
+    const inPlay = t.ballsInPlay();
+    const add = Math.max(0, RULES.frenzyBalls - inPlay);
+    this.frenzy = { intro: 0.4 + add * 0.17, t: RULES.frenzyTime, dur: RULES.frenzyTime, need: RULES.frenzyKeep, kept: inPlay + add };
+    t.spawnFrenzyBalls(add);
+    t.multiball = true; t.multiballLit = false;
+    t.jackpotValue = Math.max(t.jackpotValue, 25000 * this.level);
+    for (const k of Object.keys(t.jackpots)) t.jackpots[k] = true;
+    t.superLit = false;
+    this.bonus.saveT = 0;
+    this.music.setFlag('multiball', true);   // les billes restantes continuent ensuite en multibille
+    this.music.setFlag('frenzy', true);
+    this.sfx('frenzyStart');
+    this.banner('MODE FURIE', `${RULES.frenzyBalls} billes : gardez-en ${RULES.frenzyKeep} pendant ${RULES.frenzyTime} s`, '#ff3040', 3, 'frenzy');
+    this.say('frenzyStart', { n: RULES.frenzyBalls, k: RULES.frenzyKeep });
+    t.react('alarm', 3);
+  }
+
+  _updateFrenzy(dt) {
+    const F = this.frenzy;
+    if (!F) return;
+    F.kept = this.table.ballsInPlay();
+    if (F.intro > 0) { F.intro -= dt; return; }
+    F.t -= dt;
+    if (F.kept < F.need) this.endFrenzy(false);
+    else if (F.t <= 0) this.endFrenzy(true);
+  }
+
+  endFrenzy(success) {
+    const F = this.frenzy;
+    if (!F) return;
+    this.frenzy = null;
+    this.music.setFlag('frenzy', false);
+    if (success) {
+      this.maxBalls = Math.min(RULES.maxBallsCap, this.maxBalls + 1);
+      this.ballsLeft = Math.min(this.maxBalls, this.ballsLeft + 1);
+      this.addScore(50000 * F.kept * this.level);
+      this.sfx('frenzyWin');
+      this.banner('FURIE MAÎTRISÉE', `${F.kept} billes tenues · réserve portée à ${this.maxBalls} vies`, '#5dff8f', 3, 'frenzyWin');
+      this.say('frenzyWin', { n: this.maxBalls });
+      this.ui.flashBalls();
+    } else {
+      this.sfx('frenzyFail');
+      this.banner('FURIE PERDUE', `Moins de ${F.need} billes : la multibille continue`, '#ff7a7a', 2.4, 'frenzyFail');
+      this.say('frenzyFail');
+    }
+  }
+
   awardExtraBall(source) {
-    if (this.ballsLeft >= RULES.maxBalls || this.extraBallsThisLevel >= 1) {
+    if (this.ballsLeft >= this.maxBalls || this.extraBallsThisLevel >= 1) {
       this.addScore(50000 * this.level, 281, 560, 'BONUS');
       return 'Bonus 50k (réserve pleine)';
     }
@@ -340,7 +446,7 @@ export class Game {
     this.transition = null;
     this.scene = 'table';
     this.music.setMode('table');
-    if (pending || !ball) this.table.serveBall({ ball, noSave: false }); // la bille attend au lanceur
+    if (pending || !ball) { this.table.serveBall({ ball, noSave: false }); this.table.pivotPending(); } // la bille attend au lanceur
     else this.table.receiveBall(ball);
     this.input.swallow();
     this._applyRewards(mg, result);
@@ -357,7 +463,7 @@ export class Game {
         msgs.push(out.title);
       }
       if (sector === 'defense' && this.bonus.deferredMB > 0) this.table.deferredT = 3;
-      const pct = 12 + 22 * ['hangar', 'reactor', 'defense'].filter(s => this.table.sectors[s].done).length;
+      const pct = Math.round(12 + 88 * this.table.sectorsDone() / MINI_SECTORS.length);
       if (sector === 'core') {
         this.levelUp();
       } else {
@@ -371,7 +477,7 @@ export class Game {
         const out = this.bonus.grant(r.type, r);
         msgs.push(out.title);
       }
-      const WHY = { timeout: 'Temps écoulé', hull: 'Coque détruite', overload: 'Surcharge du réacteur' };
+      const WHY = { timeout: 'Temps écoulé', hull: 'Coque détruite' };
       const why = result.drained ? 'Noyau retombé — retour au plateau' : (WHY[result.reason] || 'Échec');
       this.banner(`${S.name} : ÉCHEC`, msgs.length ? why + ' · ' + msgs.join(' · ') : why + ' · progression conservée', '#ff7a7a', 2.4, 'minigameFail');
       this.say(sector === 'core' ? 'null_win' : result.drained ? 'mgDrained' : 'mgFail');

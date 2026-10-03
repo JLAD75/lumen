@@ -358,6 +358,8 @@ for (const level of [1, 2]) {
       if (r.win) { won = true; break; }
       input.releaseAll();
       run(g, 5, () => g.scene === 'table' && !g.transition ? false : undefined);
+      // le barillet pivote au retour : attendre que l'aimant de l'œil relâche la bille
+      run(g, 5, () => g.table.magnet ? undefined : false);
       if (g.scene !== 'table' || !g.table.world.balls.some(b => b.state === 'free')) break;
       mg = restart(g);
       if (!mg || g.scene !== 'minigame') break;

@@ -264,7 +264,12 @@ export class AudioEngine {
 
 // Aiguillage musical : la piste enregistrée du mode (assets/music) si elle existe,
 // sinon la musique procédurale. La multibille a sa propre piste sur le plateau.
-const TRACK_OF = { title: 'title', table: 'table', brick: 'hangar', reactor: 'reactor', defense: 'defense', duel: 'duel', gameover: 'gameover' };
+const TRACK_OF = {
+  title: 'title', table: 'table', brick: 'hangar', reactor: 'reactor', tag: 'graffiti', defense: 'defense',
+  vault: 'vault', arena: 'arena', duel: 'duel', gameover: 'gameover',
+};
+// morceau de remplacement tant qu'un nouveau morceau n'a pas été déposé dans assets/music
+const TRACK_FALLBACK = { graffiti: 'hangar', vault: 'reactor', arena: 'defense', frenzy: 'multiball' };
 
 class MusicMix {
   constructor(proc, st, A) {
@@ -276,7 +281,9 @@ class MusicMix {
 
   _route() {
     let key = TRACK_OF[this.mode] || null;
-    if (key === 'table' && this.flags.multiball && this.st.usable('multiball')) key = 'multiball';
+    if (key === 'table' && this.flags.frenzy) key = 'frenzy';
+    else if (key === 'table' && this.flags.multiball && this.st.usable('multiball')) key = 'multiball';
+    if (key && !this.st.usable(key) && TRACK_FALLBACK[key]) key = TRACK_FALLBACK[key];
     if (key && this.st.usable(key)) {
       if (key !== this.key) this.st.play(key, { resume: key === 'table' });
       this.key = key;
@@ -289,7 +296,7 @@ class MusicMix {
   }
 
   setMode(m, immediate) { this.mode = m; this.proc.setMode(m, immediate); this._route(); }
-  setFlag(k, v) { this.flags[k] = v; this.proc.setFlag(k, v); if (k === 'multiball') this._route(); }
+  setFlag(k, v) { this.flags[k] = v; this.proc.setFlag(k, v); if (k === 'multiball' || k === 'frenzy') this._route(); }
   setIntensity(v) { this.proc.setIntensity(v); }
   setTension(v) { this.proc.setTension(v); }
   setLevel(l) { this.proc.setLevel(l); }

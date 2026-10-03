@@ -11,6 +11,9 @@ const SONGS = {
   brick:    { bpm: 128, root: 60, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], style: 'bounce' },
   reactor:  { bpm: 122, root: 62, prog: [[0, 3, 7], [0, 3, 7], [-4, 0, 3], [-5, -1, 2]], style: 'pulse' },
   defense:  { bpm: 136, root: 64, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], style: 'drive' },
+  tag:      { bpm: 124, root: 67, prog: [[0, 4, 7], [-3, 0, 4], [-5, -1, 2], [-7, -3, 0]], style: 'bounce' },
+  vault:    { bpm: 118, root: 59, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], style: 'pulse' },
+  arena:    { bpm: 132, root: 65, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-1, 2, 6]], style: 'drive' },
   duel:     { bpm: 140, root: 57, prog: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 2, 5]], style: 'dark' },
   gameover: { bpm: 76,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [-7, -4, 0], [-5, -1, 2]], style: 'ambient' },
 };

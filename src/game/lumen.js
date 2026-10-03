@@ -21,14 +21,23 @@ const LINES = {
   missionDone: { pri: 2, cd: 0, v: ['Mission accomplie. Récompense transférée.', 'Tâche validée. Je vous offre un bonus. Et ma gratitude, en option.'] },
   missionFail: { pri: 1, cd: 0, v: ['Délai expiré. On réessaiera.', 'Mission annulée. Je ne juge pas. Beaucoup.'] },
   sectorReady_hangar: { pri: 3, cd: 0, v: ['Hangar déverrouillé. Rampe du pont, à gauche, s\'il vous plaît.'] },
-  sectorReady_reactor: { pri: 3, cd: 0, v: ['Réacteur prêt. Montez sur le pont et visez l\'UPLINK.'] },
+  sectorReady_reactor: { pri: 3, cd: 0, v: ['Singularité confinable. Rampe gauche, et tenez bon.'] },
+  sectorReady_tag: { pri: 3, cd: 0, v: ['Les murs de NULL vous attendent. Rampe gauche, bombes prêtes.'] },
   sectorReady_defense: { pri: 3, cd: 0, v: ['Défense armée. Rampe droite pour engager les drones.'] },
+  sectorReady_vault: { pri: 3, cd: 0, v: ['Le coffre de NULL est à portée. Rampe droite. Je n\'ai rien dit.'] },
+  sectorReady_arena: { pri: 3, cd: 0, v: ['Arène ouverte. Rampe droite, le gardien s\'échauffe.'] },
   sectorReady_core: { pri: 4, cd: 0, v: ['Trois secteurs en ligne. NULL est exposé. Portail central.'] },
+  pivot: { pri: 3, cd: 2, v: ['Rampe surmenée : le barillet pivote. Je garde la bille au chaud.', 'Rotation du barillet. Prochaine rampe : {to}.'] },
+  pivotPlayed: { pri: 3, cd: 2, v: ['Face utilisée. Le barillet tourne vers {to}.', 'Changement de rampe : {to} en approche.'] },
+  extraLife: { pri: 4, cd: 0, v: ['Un million. Une vie de plus. Les comptables pleurent.', 'Cap du million franchi : vie supplémentaire.'] },
+  frenzyStart: { pri: 5, cd: 0, v: ['Réserve pleine. La station s\'énerve : {n} noyaux ! Gardez-en {k}.', 'Furie ! {n} noyaux lâchés. En garder {k}, et pas de batteur collé.'] },
+  frenzyWin: { pri: 5, cd: 0, v: ['Furie maîtrisée. Réserve étendue à {n} noyaux.', 'Impressionnant. Votre réserve passe à {n}.'] },
+  frenzyFail: { pri: 4, cd: 0, v: ['Moins de six. La furie retombe. Profitez des jackpots.'] },
+  flipperHot: { pri: 3, cd: 4, v: ['Batteur en surchauffe. Relâchez !', 'Trois secondes levé, c\'est trop. Il refroidit.'] },
   targetProgress: { pri: 1, cd: 7, v: ['Cible {sector} {n}/{max}.', '{sector} : {n} sur {max}.'] },
   kickback: { pri: 2, cd: 3, v: ['Kickback ! Je vous la renvoie.', 'Kickback. Couloir gauche sécurisé… une fois.'] },
   deckFirst: { pri: 3, cd: 0, v: ['Bienvenue sur le pont supérieur. Les petits batteurs obéissent aux mêmes commandes.'] },
   uplink: { pri: 1, cd: 8, v: ['Liaison UPLINK établie.', 'Données transmises. Merci pour le colis.'] },
-  loopProgress: { pri: 1, cd: 4, v: ['Boucle 1/2. Encore une et le réacteur s\'ouvre.'] },
   multiballLit: { pri: 3, cd: 0, v: ['Réplication du noyau disponible. Portail central.'] },
   multiball: { pri: 4, cd: 0, v: ['Réplication ! Plusieurs noyaux. Je ne garantis plus rien.', 'Multibille. Mes processeurs adorent le chaos contrôlé.'] },
   deferredMB: { pri: 4, cd: 0, v: ['Renforts de la Défense en approche. Multibille !'] },
@@ -44,7 +53,6 @@ const LINES = {
   rewardReady: { pri: 3, cd: 0, v: ['Récompense installée sur le plateau : {reward}.'] },
 
   enter_hangar: { pri: 4, cd: 0, v: ['Hangar orbital. Gravité coupée. Deux murs, six verrous dorés : faites sauter les veines d\'explosifs.'] },
-  enter_reactor: { pri: 4, cd: 0, v: ['Réacteur instable. Touchez les nœuds dans l\'ordre. Vite.'] },
   enter_defense: { pri: 4, cd: 0, v: ['Drones en approche. Touchez les tourelles, elles s\'occupent du reste.'] },
   enter_core: { pri: 4, cd: 0, v: ['Accès au noyau. NULL vous attend. Moi aussi, d\'ailleurs.'] },
   mgSuccess: { pri: 4, cd: 0, v: ['Secteur réactivé. Station à {pct} %.', 'Procédure réussie. Station à {pct} %.'] },
@@ -54,9 +62,6 @@ const LINES = {
   brickLock: { pri: 2, cd: 2, v: ['Verrou brisé. Plus que {n}.', 'Verrou détruit. {n} restant(s).'] },
   brickCapsule: { pri: 1, cd: 4, v: ['Capsule récupérée : {name}.'] },
   brickWall: { pri: 3, cd: 0, v: ['Mur effondré. Le mur {n} descend : suivez les veines d\'explosifs.', 'Premier rideau tombé. Le second descend vers vous.'] },
-  reactorWrong: { pri: 2, cd: 3, v: ['Mauvais nœud. Instabilité en hausse.', 'Ordre incorrect. Le réacteur grince.'] },
-  reactorSeq: { pri: 2, cd: 1, v: ['Séquence validée. Suivante.', 'Phase stabilisée. On continue.'] },
-  reactorCritical: { pri: 3, cd: 8, v: ['Instabilité critique !', 'Température : déraisonnable.'] },
   defenseWave: { pri: 3, cd: 0, v: ['Vague {n} en approche.', 'Contact radar : vague {n}.'] },
   defenseHull: { pri: 2, cd: 3, v: ['Coque touchée. Intégrité {hull}.', 'Impact sur la coque !'] },
   defenseCarrier: { pri: 3, cd: 0, v: ['Porte-drones détecté. Point faible sous la coque.'] },
@@ -74,6 +79,9 @@ const LINES = {
   null_defeat: { persona: 'null', pri: 6, cd: 0, v: ['ce n\'est… qu\'une… mise à jour…'] },
   null_win: { persona: 'null', pri: 5, cd: 0, v: ['RETOURNEZ À VOTRE PLATEAU, OPÉRATEUR.'] },
 };
+
+// Répliques propres à un module (minijeux) : ajoutées au chargement du module.
+export function addLines(defs) { Object.assign(LINES, defs); }
 
 export class Lumen {
   constructor(game) {

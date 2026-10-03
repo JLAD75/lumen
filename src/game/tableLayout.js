@@ -96,7 +96,8 @@ export function buildSling(world, right) {
 export function buildLanes(world, right) {
   const m = right ? mx : (x) => x;
   // Le guide est tangent au-dessus de la base du batteur : transition sans marche.
-  world.circle(m(58), 730, 5, { mat: 'post', style: 'post' });
+  // poteau sans frottement : une bille posée dessus ne peut pas y rester en équilibre
+  world.circle(m(58), 730, 5, { mat: 'post', style: 'post', mu: 0 });
   world.poly([[m(58), 730], [m(58), 880], [m(170), 941.3]], { mat: 'metal', r: 2.5, style: 'guide' });
 }
 
@@ -139,6 +140,8 @@ export const T = {
   spinnerY: 340,
   orbitTopY: 160,
   kickback: { x: 39, y: 862 },
+  // œil de LUMEN au centre du cadran : l'aimant y retient la bille pendant la rotation d'un barillet
+  eye: { x: 281, y: 672 },
 };
 
 // Inserts lumineux (flèches de tir) — positions et angles.
@@ -253,7 +256,9 @@ function buildDeckRamp(world) {
   world.poly([[g.x1 + g.flare, g.mouthY + 16], [g.x1, g.mouthY], [g.x1, T.ceilY]], both);
   world.seg(g.x0, T.ceilY, g.x0, g.deckY - 6, up);
   world.seg(g.x1, T.ceilY, g.x1, g.deckY - 6, up);
-  return { side: 'L', portalX: (g.x0 + g.x1) / 2, portalY: g.deckY + 10 };
+  // volet de l'entrée : fermé pendant la rotation du barillet
+  const gate = world.seg(g.x0 + 1, g.mouthY + 4, g.x1 - 1, g.mouthY + 4, { mat: 'metal', r: 3, mask: M_PF, style: 'none', enabled: false });
+  return { side: 'L', portalX: (g.x0 + g.x1) / 2, portalY: g.deckY + 10, gate };
 }
 
 // Rampe droite : montée, virage en U, descente vers le couloir de retour droit.
@@ -268,7 +273,8 @@ function buildReturnRamp(world) {
   world.arc(g.turnCx, g.topY, g.turnR0, -Math.PI, 0, { ...up, segLen: 6 });
   world.seg(g.downX0, g.topY, g.downX0, g.exitY + 4, up);
   world.seg(g.downX1, g.topY, g.downX1, g.exitY + 4, up);
-  return { side: 'R', portalX: g.turnCx, portalY: g.topY - (g.turnR0 + g.turnR1) / 2 };
+  const gate = world.seg(g.upX0 + 1, g.mouthY + 4, g.upX1 - 1, g.mouthY + 4, { mat: 'metal', r: 3, mask: M_PF, style: 'none', enabled: false });
+  return { side: 'R', portalX: g.turnCx, portalY: g.topY - (g.turnR0 + g.turnR1) / 2, gate };
 }
 
 // Pont supérieur : guides inclinés vers deux petits batteurs, 4 cibles, éjecteur UPLINK.
