@@ -109,7 +109,9 @@ export function buildLanes(world, right) {
 export const WORLD = { x0: 0, y0: -150, w: 600, h: 1250 };
 
 // masques de couches (bit n = couche n)
-export const M_PF = 1, M_RAMP = 2, M_DECK = 4;
+export const M_PF = 1;
+export const M_RAMP = 2;
+export const M_DECK = 4;
 
 export const T = {
   ...L,
@@ -196,10 +198,12 @@ export function buildCortexTable(world) {
 
   // --- Orbites (sous le pont) --------------------------------------------
   const O = T.orbitInner;
-  // séparateurs orbite / rampe : pas de poche morte entre les deux tirs
+  // À gauche, la rampe du pont monte jusqu'au plafond : la poche entre orbite et rampe est
+  // fermée par un séparateur. À droite, la rampe s'arrête plus bas : la poche reste ouverte
+  // en haut, c'est donc un couloir de passage (le fermer en bas créait un coin piège).
   world.poly([[121, 486], [90, 446], [62, 282], [62, 150]], guide);
   world.arc(O.cx, O.cy, O.r, -Math.PI, 0, { ...guide, segLen: 12, style: 'orbitInner' });
-  world.poly([[500, 150], [500, 282], [472, 446], [441, 486]], guide);
+  world.poly([[500, 150], [500, 282], [472, 446]], guide);
   R.dividers = [[90, 446], [472, 446]].map(([x, y]) => world.circle(x, y, 5, { mat: 'post', style: 'post' }));
   // plafond du plateau central (bord avant du pont)
   const cw = Math.sqrt(O.r * O.r - (O.cy - T.ceilY) ** 2);
@@ -280,6 +284,9 @@ function buildDeck(world) {
   R.guideR = [[rx, ry], eR];
   world.seg(lx, ly, eL[0], eL[1], deckGuide);
   world.seg(rx, ry, eR[0], eR[1], deckGuide);
+  // tabliers sous les petits batteurs : guident la chute vers l'ouverture centrale
+  world.seg(D.flipL[0] - 5, D.flipL[1] + 10, D.drainX0 + 2, D.drainY + 2, { mat: 'metal', r: 2.5, mask: M_DECK, style: 'none' });
+  world.seg(D.flipR[0] + 5, D.flipR[1] + 10, D.drainX1 - 2, D.drainY + 2, { mat: 'metal', r: 2.5, mask: M_DECK, style: 'none' });
   const fo = { length: D.flipLen, baseR: D.baseR, tipR: D.tipR, mask: M_DECK, idSuffix: 'deck' };
   R.flipL = world.addFlipper(new Flipper(D.flipL[0], D.flipL[1], 1, fo));
   R.flipR = world.addFlipper(new Flipper(D.flipR[0], D.flipR[1], -1, fo));

@@ -256,6 +256,7 @@ export class TableArt {
   constructor(r) {
     this.r = r;
     this.eye = { x: 0, y: 0, blink: 0, nextBlink: 3 };
+    this.ring = RING;              // position de l'œil (extinction de fin de partie)
     this.flashers = { tl: 0, tr: 0, bl: 0, br: 0 };
     this.lastScore = 0;
   }
@@ -720,7 +721,7 @@ export class TableArt {
     r.blitLayer(ctx, r.layer('table', (g) => this.staticLayer(g, table)));
     const lamps = table.shotLamps();
     this._inserts(ctx, table, game, lamps, t);
-    this._eye(ctx, table, game);
+    if (!r.shut) this._eye(ctx, table, game);   // pendant l'extinction, dessiné par-dessus le voile
     this._lanes(ctx, table, t);
     this._bankTargets(ctx, table, t);
     this._drops(ctx, table, t);
@@ -807,7 +808,8 @@ export class TableArt {
   }
 
   // Œil de LUMEN au centre de l'emblème : suit la bille, rougit quand NULL parle.
-  _eye(ctx, table, game) {
+  // S (extinction de fin de partie) : LUMEN ferme l'œil, puis NULL ouvre le sien (pupille fendue).
+  _eye(ctx, table, game, S = null) {
     const r = this.r, E = this.eye;
     const { x, y } = RING;
     const ball = table.world.balls.find(b => b.state === 'free') || table.world.balls[0];
@@ -819,17 +821,34 @@ export class TableArt {
     E.blink = Math.max(0, E.blink - 0.12);
     const msg = game.lumen.current;
     const nullMode = msg && msg.persona === 'null';
-    const col = nullMode ? C.red : C.cyan;
-    const talk = msg ? 0.5 + 0.5 * Math.sin(r.time * 22) : 0;
-    r.glow(x, y, 110, col, 0.3 + 0.25 * talk);
-    const iris = ctx.createRadialGradient(x + E.x, y + E.y, 1, x + E.x, y + E.y, 22);
-    iris.addColorStop(0, '#ffffff'); iris.addColorStop(0.25, col); iris.addColorStop(1, rgba(col, 0.05));
+    let col = nullMode ? C.red : C.cyan;
+    let talk = msg ? 0.5 + 0.5 * Math.sin(r.time * 22) : 0;
+    let open = 1 - E.blink * 0.92, ex = E.x, ey = E.y, slit = false, gk = 1;
+    if (S) {
+      if (S.red > 0) {
+        col = C.red; open = S.red; slit = true; gk = 1.4 * S.red;
+        talk = 0.5 + 0.5 * Math.sin(r.time * 2.4);
+        ex = Math.sin(r.time * 0.6) * 7; ey = 0;
+        if (Math.random() < 0.05 && !r.settings.reducedFx) ex += (Math.random() - 0.5) * 10;
+      } else { col = C.cyan; open = Math.min(open, 1 - S.close); talk = 0; gk = open; }
+    }
+    r.glow(x, y, slit ? 110 + 170 * S.red : 110, col, (0.3 + 0.25 * talk) * gk);
+    if (open < 0.04) {
+      // paupière close : un simple trait
+      ctx.strokeStyle = rgba(col, 0.35); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - 24, y); ctx.lineTo(x + 24, y); ctx.stroke();
+      return;
+    }
+    const iris = ctx.createRadialGradient(x + ex, y + ey, 1, x + ex, y + ey, 22);
+    iris.addColorStop(0, slit ? '#ffd0d8' : '#ffffff'); iris.addColorStop(0.25, col); iris.addColorStop(1, rgba(col, 0.05));
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(x, y, 27, 27 * (1 - E.blink * 0.92), 0, 0, TAU); ctx.clip();
+    ctx.beginPath(); ctx.ellipse(x, y, 27, 27 * open, 0, 0, TAU); ctx.clip();
     ctx.fillStyle = '#04060c'; ctx.fillRect(x - 30, y - 30, 60, 60);
-    ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(x + E.x, y + E.y, 18 + talk * 3, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#02030a'; ctx.beginPath(); ctx.arc(x + E.x * 1.1, y + E.y * 1.1, 5.5, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(x + E.x - 6, y + E.y - 7, 2.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(x + ex, y + ey, 18 + talk * 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#02030a'; ctx.beginPath();
+    if (slit) ctx.ellipse(x + ex * 1.1, y + ey * 1.1, 2.6, 15, 0, 0, TAU); else ctx.arc(x + ex * 1.1, y + ey * 1.1, 5.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(x + ex - 6, y + ey - 7, 2.6, 0, TAU); ctx.fill();
     ctx.restore();
   }
 

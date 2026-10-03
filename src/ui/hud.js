@@ -1,7 +1,8 @@
 import { SECTORS, TABLE_W, TABLE_H } from '../config.js';
 import { fmt } from '../util/math.js';
-import { saveSettings, load, save } from '../util/storage.js';
+import { saveSettings, save } from '../util/storage.js';
 import { DMD } from './dmd.js';
+import { GameOverSeq, scoreRows } from './gameover.js';
 
 const $ = (s) => document.querySelector(s);
 const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', defense: '⛨', core: '☠' };
@@ -30,11 +31,13 @@ export class UI {
     this.slowT = 0;
     this.touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
     this.el.app.classList.toggle('touch', this.touch);
+    this.el.app.classList.toggle('rm', !!settings.reducedMotion);
     // afficheur à points façon vrai flipper (score, événements, messages de LUMEN)
     this.dmd = new DMD(this.el.dmd, settings);
     this.el.hud.classList.add('dmd-on');
     this.view = { x: 0, y: 0, w: TABLE_W, h: TABLE_H, scale: 1 };
     this.bounds = { x0: 0, y0: 0, w: TABLE_W, h: TABLE_H };
+    this.over = new GameOverSeq(this);   // fin de session : cinématique et tableau des scores
     this._bind();
     this._safeProbe();
   }
@@ -67,19 +70,15 @@ export class UI {
       inp.addEventListener('input', () => {
         this.settings[k] = inp.type === 'checkbox' ? inp.checked : parseFloat(inp.value);
         saveSettings(this.settings);
+        if (k === 'reducedMotion') this.el.app.classList.toggle('rm', !!this.settings.reducedMotion);
         this.h.settingsChanged(k);
       });
-    });
-    $('#name-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = ($('#name-input').value || 'OPR').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3) || 'OPR';
-      this.h.saveScore(name);
-      $('#name-form').classList.add('hidden');
-      $('#name-input').blur();
     });
   }
 
   action(a) {
+    // fin de session : pas de départ involontaire, initiales en cours enregistrées
+    if ((a === 'play' || a === 'title') && this.over.active) { if (!this.over.canLeave()) return; this.over.leave(); }
     switch (a) {
       case 'play': this.h.play(); break;
       case 'help': this.open('help'); break;
@@ -100,7 +99,8 @@ export class UI {
     this.screenStack.push(name);
     this.el.screens[name].classList.remove('hidden');
     const first = this.el.screens[name].querySelector('.btn.primary, .btn');
-    if (first && !this.touch) setTimeout(() => first.focus(), 30);
+    // fin de session : rien n'a le focus (Entrée et Espace pilotent la séquence)
+    if (first && !this.touch && name !== 'over') setTimeout(() => first.focus(), 30);
     this.h.menuOpen && this.h.menuOpen(true);
   }
   back() {
@@ -114,6 +114,7 @@ export class UI {
   topScreen() { return this.screenStack[this.screenStack.length - 1] || null; }
 
   showTitle() {
+    this.over.stop();
     this.hideScreens(); this.screenStack = [];
     this.el.hud.classList.add('hidden');
     this.el.launch.classList.add('hidden');
@@ -124,6 +125,7 @@ export class UI {
   }
 
   onGameStart() {
+    this.over.stop();
     this.dmd.setMode('play');
     this.hideScreens(); this.screenStack = [];
     this.h.menuOpen && this.h.menuOpen(false);
@@ -143,24 +145,23 @@ export class UI {
     else { this.hideScreens(); this.screenStack = []; this.h.menuOpen && this.h.menuOpen(false); }
   }
 
+  // Fin de partie : la séquence (src/ui/gameover.js) enchaîne cinématique, rapport,
+  // initiales et tableau des scores ; elle est animée par update().
   showGameOver(d) {
     this.hideScreens(); this.screenStack = [];
     this.el.launch.classList.add('hidden');
-    $('#final-score').textContent = fmt(d.score);
-    $('#final-rank').textContent = d.rank === 0 ? 'NOUVEAU RECORD !' : d.rank > 0 ? `Classement : ${d.rank + 1}e` : 'Hors classement';
-    const done = ['hangar', 'reactor', 'defense'].filter(s => d.sectors[s].done).length;
-    $('#final-stats').innerHTML = `<span>Niveau de sécurité</span><span>${d.level}</span><span>Secteurs réactivés (cycle)</span><span>${done}/3</span>` +
-      `<span>Minijeux gagnés</span><span>${d.stats.minigamesWon}/${d.stats.minigamesPlayed}</span><span>Victoires contre NULL</span><span>${d.stats.bossWins}</span>`;
-    const form = $('#name-form');
-    if (d.rank >= 0) { form.classList.remove('hidden'); $('#name-input').value = load('lastName', ''); }
-    else form.classList.add('hidden');
+    this.el.tally.classList.add('hidden'); this.tallyT = 0;
+    clearTimeout(this._zt); this.el.zones.classList.add('hidden');
+    this.bannerQueue.length = 0; this.bannerT = 0; this.el.banner.classList.remove('show');
+    this.over.start(d);
     this.open('over');
   }
 
   renderHiscores(list) {
     list = list || this.h.scores().list;
     const ol = this.el.hiscores;
-    ol.innerHTML = list.length ? list.slice(0, 5).map(e => `<li>${escapeHtml(e.name)} <span>${fmt(e.score)}</span></li>`).join('') : '<li class="empty">Aucun score enregistré</li>';
+    ol.classList.add('lb');
+    ol.innerHTML = list.length ? scoreRows(list, { n: Math.min(5, list.length) }) : '<li class="empty">Aucun score enregistré</li>';
   }
 
   // ------------------------------------------------------------ mise en page
@@ -381,6 +382,7 @@ export class UI {
 
   // ------------------------------------------------------------ mise à jour par image
   update(game, dt) {
+    this.over.update(game, dt);
     if (this.bannerT > 0) { this.bannerT -= dt; if (this.bannerT <= 0) { this.el.banner.classList.remove('show'); setTimeout(() => this._nextBanner(), 220); } }
     if (this.tallyT > 0) { this.tallyT -= dt; if (this.tallyT <= 0) this.el.tally.classList.add('hidden'); }
     this._updateDmd(game, dt);
@@ -408,7 +410,8 @@ export class UI {
     if (c.showMg !== showMg || c.mgInWorld !== this.mgInWorld) {
       c.showMg = showMg; c.mgInWorld = this.mgInWorld;
       // l'écran du minijeu est dessiné au-dessus de l'arène, sauf en caméra de suivi
-      e.mgBar.classList.toggle('hidden', !showMg || this.mgInWorld);
+      e.mgBar.classList.toggle('hidden', !showMg || (this.mgInWorld && this.panels));
+      e.mgBar.classList.toggle('slim', this.mgInWorld && !this.panels);
       e.missionChip.classList.toggle('hidden', showMg);
       e.goal.classList.toggle('hidden', showMg);
       e.effectsChips.classList.toggle('hidden', showMg);

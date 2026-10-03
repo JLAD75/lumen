@@ -106,6 +106,7 @@ export class Music {
   }
 
   _playStep(step, t) {
+    if (this.muted) return;          // une piste enregistrée joue à sa place
     const s = this.song, A = this.A;
     const I = Math.min(1, this.intensity + (this.flags.multiball && this.mode === 'table' ? 0.3 : 0));
     const T = this.tension;

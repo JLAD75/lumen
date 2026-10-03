@@ -25,7 +25,7 @@ node tools/build-single.js
 
 - **Autre port** : `node server.js 3000`. Tout autre serveur statique convient aussi (par exemple `python -m http.server 8080`).
 
-Le son démarre à la première interaction (contrainte des navigateurs mobiles).
+Le son démarre à la première interaction (contrainte des navigateurs). Les musiques sont dans `assets/music/` (MP3 ; la version `dist/` les charge depuis `../assets/music/`). Un morceau absent est remplacé par la musique procédurale.
 
 ---
 
@@ -54,6 +54,15 @@ Le son démarre à la première interaction (contrainte des navigateurs mobiles)
 - **Échec à l'objectif** (chrono écoulé, surcharge, coque détruite) : même retour au plateau.
 - **Réussite** : la bille revient par le portail central, avec 4 s de protection.
 - **Fin de partie** : quand la dernière bille est perdue sur le plateau principal.
+
+### Fin de partie
+
+Une séquence d'une vingtaine de secondes, que l'on peut passer avec Espace, Entrée ou un toucher, accompagne la musique de fin :
+- « SIGNAL PERDU », puis le plateau s'éteint par une vague de bas en haut ; l'œil de LUMEN se ferme et NULL prend le contrôle (ville et lumières au rouge) ;
+- le titre « FIN DE SESSION » se reconstitue en glitch, le score défile et le rapport de session s'écrit ligne par ligne (niveau, secteurs, minijeux, victoires sur NULL, jackpots, multibilles, meilleur combo, skill shots, missions, durée) ;
+- le rang est révélé (« NOUVEAU RECORD ! » avec feux d'artifice, classement, ou points manquants) ;
+- saisie des initiales façon borne d'arcade avec les mêmes commandes (← → choisissent la lettre, Espace ou Entrée valide ; on peut aussi taper les lettres) ;
+- puis le tableau des 10 meilleurs scores s'anime (lignes qui arrivent une à une, nouvelle entrée mise en avant, or, argent, bronze), en boucle jusqu'à la partie suivante.
 
 ### Le plateau : trois niveaux
 
@@ -171,11 +180,13 @@ src/render/                renderer.js (caméra, scènes, calques, écran des mi
                            tableArt.js (habillage du plateau), artKit.js (chrome, plastiques, inserts)
                            postfx.js (bloom, glitch), backdrop.js (mégapole animée)
                            fx.js (particules, arcs, balayages), sprites.js
-src/audio/                 engine.js (bus, polyphonie), sfx.js (+ sfx-breakout.js, sfx-defense.js),
-                           music.js, voice.js, ambience.js
+src/audio/                 engine.js (bus, polyphonie, aiguillage musical), soundtrack.js (morceaux MP3),
+                           sfx.js (+ sfx-breakout.js, sfx-defense.js), music.js, voice.js, ambience.js
+assets/music/              bande-son (MP3)
 src/input/input.js         clavier + multitouch + annulations
 src/ui/hud.js              HUD DOM adaptatif portrait/paysage, vue inclinée, panneaux
 src/ui/dmd.js              afficheur à points (score, animations, messages)
+src/ui/gameover.js         séquence de fin de partie, initiales, tableau des scores
 tools/                     tests headless, carte des tirs, géométrie, endurance, build fichier unique
 tools/dev/                 démonstrations isolées de l'afficheur et des effets (fx-demo, dmd-demo)
 ```
@@ -188,7 +199,8 @@ tools/dev/                 démonstrations isolées de l'afficheur et des effets
 - **Batteurs et lanceur** : solénoïdes, cliquetis du lanceur qui monte avec la charge.
 - **Éléments du plateau** : bumpers musicaux joués dans l'accord en cours, spinners dont le cliquetis suit la vitesse de rotation, cibles tombantes et leur remontée, kickback, entrée et chute du pont, éjecteur UPLINK.
 - **Montées sonores** pour les combos, signatures distinctes pour les portails, bonus, jackpots et pertes de bille ; sons dédiés du casse‑briques (laser, éclats, murs) et de la défense (tourelles, salve, canon orbital).
-- **Musique électronique adaptative** : 7 modes avec chacun son tempo et sa tonalité. Des couches s'activent selon l'intensité (combos, multibille), la tension (dernière bille, chrono) ajoute des éléments, et le tempo augmente avec le niveau.
+- **Bande‑son enregistrée** (`assets/music/*.mp3`) : un morceau par moment du jeu (accueil, plateau, multibille, chaque minijeu, fin de partie), lu en flux sur deux platines qui alternent pour des fondus enchaînés. Le morceau du plateau reprend où il s'était arrêté, les volumes sont égalisés, et l'ambiance de la station se tait pendant ces morceaux.
+- **Musique électronique adaptative** (repli si un morceau manque) : 7 modes avec chacun son tempo et sa tonalité. Des couches s'activent selon l'intensité (combos, multibille), la tension (dernière bille, chrono) ajoute des éléments, et le tempo augmente avec le niveau.
 - **Voix robotique de LUMEN** (formants modulés) et **voix saturée de NULL**. La musique baisse pendant qu'elles parlent.
 - **Réglages** : volumes séparés et mode muet, sauvegardés localement.
 
@@ -199,10 +211,10 @@ tools/dev/                 démonstrations isolées de l'afficheur et des effets
 ### Tests automatisés (Node, sans navigateur)
 
 ```bash
-node tools/sim-tests.js          # 110 vérifications, toutes réussies
+node tools/sim-tests.js          # 112 vérifications, toutes réussies
 node tools/test-breakout.js      # casse-briques : 72 vérifications + parties de robots
 node tools/test-defense.js       # défense : 91 vérifications + parties de robots
-node tools/table-geometry.js     # lancer, tirs depuis le berceau, pont, robustesse
+node tools/table-geometry.js     # lancer, tirs depuis le berceau, pont, robustesse, blocages
 node tools/shot-map.js           # carte des tirs depuis le berceau et en mouvement
 node tools/soak.js 6 600         # endurance : 6 parties de 10 min
 ```
@@ -222,12 +234,13 @@ node tools/soak.js 6 600         # endurance : 6 parties de 10 min
   - l'UPLINK retient puis renvoie la bille ;
   - les cibles tombantes s'abattent et se relèvent ;
   - le kickback renvoie la bille une fois.
-- **Physique** : 600 billes lancées sur le plateau, les orbites et le pont à des vitesses aléatoires : aucune n'a traversé un mur ni ne s'est bloquée. Depuis le berceau, rampes, portail, cibles et bumpers sont atteignables comme sur l'ancien plateau.
+- **Physique** : 600 billes lancées sur le plateau, les orbites et le pont à des vitesses aléatoires : aucune n'a traversé un mur ni ne s'est bloquée. Recensement des immobilisations : 1 500 billes lâchées dans toutes les zones accessibles, batteurs au repos : aucune micro‑vibration ni secousse nécessaire. Depuis le berceau, rampes, portail, cibles et bumpers sont atteignables comme sur l'ancien plateau.
 - **Multibille, bonus, pause** : accès mis en attente puis rétablis, plafonds et cumuls des bonus, simulation figée en pause.
 - **Robots des minijeux** :
   - Casse‑briques : des robots de niveaux variés gagnent environ la moitié des parties, sans bille coincée ni sortie de l'arène. Le temps passé près des murs est passé de 38 % à 22 %.
   - Défense : un robot simple gagne 100 % des parties avec une bille infinie. Avec les vraies règles, il réussit en 3 tentatives dans 60 à 77 % des cas (progression gardée).
-- **Endurance** : 367 000 pas de simulation, jusqu'au niveau 6 et 19 victoires contre NULL, sans exception, sans bille dupliquée, sans valeur invalide.
+- **Endurance** : environ 390 000 pas de simulation, jusqu'au niveau 6 et 21 victoires contre NULL, sans exception, sans bille dupliquée, sans valeur invalide.
+- **Revue croisée** : 5 relecteurs et 5 vérificateurs indépendants ont relu la refonte ; les défauts confirmés (exports perdus dans la version fichier unique, passage sous les petits batteurs du pont, porte du lanceur, annonces de secteur, messages d'échec, affichage) ont été corrigés et, pour la plupart, couverts par un test.
 
 ### Vérifié dans le navigateur (Chromium, panneau intégré)
 
@@ -237,6 +250,8 @@ node tools/soak.js 6 600         # endurance : 6 parties de 10 min
   - paysage 844×390, en vue à plat avec caméra de suivi.
 - Les 4 arènes avec leur écran intégré. Le casse‑briques à plafond plat et la défense aux batteurs sont vérifiés à l'écran.
 - Ambiances : multibille (bords magenta, cadre néon, balayage), Duel (mégapole et bords rouges, glitchs).
+- **Musiques** : les 8 morceaux se chargent ; plateau → multibille → casse‑briques → plateau vérifié (fondus, reprise de position, musique procédurale et ambiance coupées pendant les morceaux).
+- **Fin de partie** : séquence complète, saisie des initiales et tableau des scores vérifiés à 1280×800, 375×812, 844×390, 667×375 et 360×640.
 - **Audio** : les 104 effets s'exécutent sans erreur. Sous un test de charge (60 événements en 3 s, impacts en continu), le pic de sortie est à 0,85, sans aucun échantillon saturé.
 - **Coût d'une image** : 2,2 ms de JavaScript, simulation, rendu, HUD et effets compris, avec 3 billes, sur ordinateur à DPR 1. Le post‑traitement prend environ 0,5 ms et le fond animé 0,3 ms.
 

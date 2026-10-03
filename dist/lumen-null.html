@@ -182,6 +182,8 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
   position: absolute; left: 0; bottom: 0; padding: 6px calc(10px + var(--safe-l)) calc(6px + var(--safe-b));
   display: flex; flex-direction: column; gap: 4px; pointer-events: none;
 }
+.mg-bar.slim .mg-head, .mg-bar.slim .mg-timer { display: none; }
+.mg-bar.slim .mg-perk { font-size: 14px; white-space: normal; }
 .goal { font-size: 13px; font-weight: 700; color: var(--g, var(--cyan)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0 8px var(--g, var(--cyan)); }
 .goal::before { content: '▶ '; opacity: 0.8; }
 .panel .goal { white-space: normal; margin-bottom: 4px; }
@@ -308,6 +310,370 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
   .card { padding: 16px 14px; }
   .pitch { font-size: 15px; }
 }
+
+/* ==========================================================================
+   FIN DE SESSION — cinématique, rapport, initiales, tableau des scores
+   (src/ui/gameover.js). Uniquement du DOM : un <canvas> posé sur le plateau
+   aplatirait la vue inclinée.
+   ========================================================================== */
+.screen.go { display: block; padding: 0; background: none; touch-action: none; }
+.go-stage { position: absolute; inset: 0; overflow: hidden; --null: #ff2a4a; }
+
+/* voile : le plateau éteint reste visible derrière le rapport */
+.go-veil {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 1.1s ease;
+  background: radial-gradient(ellipse 70% 62% at 50% 46%, rgba(4,3,12,0.56), rgba(4,3,12,0.9));
+  box-shadow: inset 0 0 160px rgba(255,32,80,0.22);
+}
+.go-veil.on { opacity: 1; }
+.go-veil.on.lift { opacity: 0.7; transition-duration: 0.35s; }
+.go-flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; mix-blend-mode: screen; background: radial-gradient(circle at 50% 42%, #ffd0d8, #ff2040 40%, #4a0010 100%); }
+.go-flash.on { animation: goFlash 1s ease-out both; }
+@keyframes goFlash { 0% { opacity: 0.95; } 10% { opacity: 0.2; } 16% { opacity: 0.75; } 100% { opacity: 0; } }
+@keyframes goFlashSoft { 0% { opacity: 0.35; } 100% { opacity: 0; } }
+
+/* « SIGNAL PERDU » : impact, lente dérive (ralenti), extinction façon tube cathodique */
+.go-signal { position: absolute; left: 0; right: 0; top: 40%; transform: translateY(-50%); text-align: center; pointer-events: none; opacity: 0; }
+.go-signal.on { opacity: 1; }
+.go-sig {
+  display: inline-block; font-family: var(--font-d); font-weight: 900; font-size: clamp(30px, 8.6vw, 104px);
+  letter-spacing: 0.05em; line-height: 1; color: #ff2a4a; white-space: nowrap;
+  text-shadow: 0 0 18px rgba(255,32,80,0.95), 0 0 60px rgba(255,32,80,0.55), 0 0 2px #fff;
+}
+.go-signal.on .go-sig { animation: goSig 2.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes goSig {
+  0% { transform: scale(2.1); opacity: 0; filter: blur(10px) brightness(3); }
+  6% { transform: scale(0.94); opacity: 1; filter: none; }
+  10% { transform: scale(1.02); }
+  82% { transform: scale(1.09); opacity: 1; filter: none; }
+  91% { transform: scale(1.16, 0.05); opacity: 1; filter: brightness(4); }
+  100% { transform: scale(0, 0.02); opacity: 0; filter: brightness(4); }
+}
+.go-sig2 { font-family: var(--font-d); font-size: clamp(9px, 2.1vw, 14px); letter-spacing: 0.26em; white-space: nowrap; text-transform: uppercase; color: #ffb7c3; margin-top: 12px; opacity: 0; text-shadow: 0 0 8px rgba(255,40,80,0.8); }
+.go-signal.on .go-sig2 { animation: goSig2 2.5s steps(1) both; }
+@keyframes goSig2 { 0% { opacity: 0; } 14% { opacity: 1; } 18% { opacity: 0.2; } 21%, 78% { opacity: 1; } 80%, 100% { opacity: 0; } }
+.go-tear { position: absolute; left: -10%; width: 120%; height: 4px; opacity: 0; background: linear-gradient(90deg, transparent, #ff2a4a 20%, #fff 50%, #29e3ff 80%, transparent); }
+.go-tear:nth-of-type(1) { top: -40%; }
+.go-tear:nth-of-type(2) { top: 55%; height: 2px; }
+.go-tear:nth-of-type(3) { top: 130%; height: 6px; }
+.go-signal.on .go-tear { animation: goTear 0.55s steps(4) both; }
+.go-signal.on .go-tear:nth-of-type(2) { animation-delay: 0.12s; }
+.go-signal.on .go-tear:nth-of-type(3) { animation-delay: 0.24s; }
+@keyframes goTear { 0% { opacity: 1; transform: translateX(-30%); } 60% { opacity: 1; transform: translateX(20%) scaleY(2); } 100% { opacity: 0; transform: translateX(45%) scaleY(0.5); } }
+
+/* aberration chromatique des titres */
+.glx { position: relative; }
+.glx::before, .glx::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; text-shadow: none; }
+.go-sig.glx::before { color: #29e3ff; opacity: 0.8; mix-blend-mode: screen; animation: goGlxA 0.42s steps(2) infinite; }
+.go-sig.glx::after { color: #ff3df2; opacity: 0.8; mix-blend-mode: screen; animation: goGlxB 0.36s steps(2) infinite; }
+@keyframes goGlxA { 0% { clip-path: inset(8% 0 72% 0); transform: translate(-7px, 0); } 25% { clip-path: inset(58% 0 20% 0); transform: translate(6px, 0); } 50% { clip-path: inset(30% 0 52% 0); transform: translate(-4px, 0); } 75% { clip-path: inset(80% 0 4% 0); transform: translate(9px, 0); } 100% { clip-path: inset(44% 0 40% 0); transform: translate(-2px, 0); } }
+@keyframes goGlxB { 0% { clip-path: inset(66% 0 12% 0); transform: translate(6px, 0); } 33% { clip-path: inset(14% 0 64% 0); transform: translate(-8px, 0); } 66% { clip-path: inset(40% 0 38% 0); transform: translate(4px, 0); } 100% { clip-path: inset(2% 0 86% 0); transform: translate(-5px, 0); } }
+
+/* jauge d'alimentation et messages des IA pendant l'extinction */
+.go-status {
+  position: absolute; left: 50%; top: 70%; transform: translateX(-50%); width: min(400px, 90vw);
+  padding: 10px 14px; border-radius: 10px; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+  background: rgba(3,4,12,0.8); border: 1px solid rgba(255,64,96,0.35); box-shadow: 0 0 24px rgba(255,32,80,0.18);
+  font-family: var(--font-d); text-transform: uppercase; --pc: var(--cyan);
+}
+.go-status.on { opacity: 1; }
+.go-pw { display: flex; align-items: center; gap: 10px; font-size: 9px; letter-spacing: 0.16em; color: #a9b8d6; }
+.go-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.go-bar i { display: block; height: 100%; width: 100%; background: var(--pc); box-shadow: 0 0 10px var(--pc); }
+.go-pw b { min-width: 3.4em; text-align: right; font-size: 12px; color: var(--pc); }
+.go-msg { margin-top: 8px; min-height: 1.3em; text-align: center; font-size: 11px; letter-spacing: 0.18em; }
+.go-msg.lumen { color: var(--cyan); text-shadow: 0 0 8px rgba(41,227,255,0.8); animation: goBlink 0.5s steps(1) 4; }
+.go-msg.null { color: var(--null); text-shadow: 0 0 10px rgba(255,32,80,0.9); animation: glitch 0.25s infinite; }
+@keyframes goBlink { 50% { opacity: 0.15; } }
+
+/* mise en page : en-tête, panneaux, menu ; centré verticalement sans rogner (défile au besoin) */
+.go-wrap {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: calc(14px + var(--safe-t)) calc(12px + var(--safe-r)) calc(30px + var(--safe-b)) calc(12px + var(--safe-l));
+  overflow-x: hidden; overflow-y: auto; touch-action: pan-y;
+}
+.go-wrap::before, .go-wrap::after { content: ''; flex: 1 1 0; }
+.go-head { text-align: center; visibility: hidden; max-width: 100%; }
+.go-head.on { visibility: visible; }
+.go-title {
+  position: relative; margin: 0; font-family: var(--font-d); font-weight: 900; font-size: clamp(24px, 7.4vw, 66px);
+  line-height: 1.12; letter-spacing: 0.08em; color: #fff; white-space: nowrap;
+  text-shadow: 0 0 12px rgba(41,227,255,0.9), 0 0 38px rgba(41,227,255,0.45);
+}
+.go-title .go-sz { visibility: hidden; }
+.go-title .sl { position: absolute; left: 0; top: 0; width: 100%; clip-path: inset(var(--t) -80px var(--b) -80px); }
+.go-head.on .go-title .sl { animation: goSlice 0.75s steps(6, end) calc(var(--i) * 75ms) both; }
+@keyframes goSlice {
+  0% { transform: translateX(var(--dx)); opacity: 0; color: var(--sc); }
+  25% { opacity: 1; }
+  70% { transform: translateX(calc(var(--dx) * -0.1)); color: var(--sc); }
+  100% { transform: none; opacity: 1; color: #fff; }
+}
+.go-head.on .go-title { animation: goNeon 1.5s 0.6s both, goBreath 3.4s 2.2s ease-in-out infinite alternate; }
+@keyframes goNeon { 0%, 100% { opacity: 1; } 6% { opacity: 0.2; } 10% { opacity: 1; } 18% { opacity: 0.35; } 22% { opacity: 1; } 58% { opacity: 1; } 61% { opacity: 0.5; } 64% { opacity: 1; } }
+@keyframes goBreath { to { text-shadow: 0 0 18px rgba(41,227,255,1), 0 0 60px rgba(41,227,255,0.6), 0 0 90px rgba(255,61,242,0.28); } }
+.go-title.glx::before, .go-title.glx::after { opacity: 0; }
+.go-head.on .go-title.glx::before { color: var(--magenta); clip-path: inset(0 0 58% 0); animation: glitchA 3.1s 2s infinite; }
+.go-head.on .go-title.glx::after { color: var(--red); clip-path: inset(52% 0 0 0); animation: glitchB 2.5s 2.4s infinite; }
+.go-sub { display: inline-block; margin-top: 6px; font-family: var(--font-d); font-size: clamp(9px, 2.3vw, 13px); letter-spacing: 0.3em; text-transform: uppercase; color: #9fb0cf; }
+.go-head.on .go-sub { animation: goType 1.2s steps(36) 0.9s both; }
+@keyframes goType { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+.go-body { display: flex; justify-content: center; align-items: flex-start; gap: 16px; width: 100%; max-width: 940px; }
+.go-panel {
+  position: relative; flex: 0 1 450px; min-width: 0; padding: 14px 18px 16px; border-radius: 14px; visibility: hidden;
+  background: linear-gradient(180deg, rgba(12,16,38,0.92), rgba(5,7,18,0.94));
+  border: 1px solid rgba(41,227,255,0.34);
+  box-shadow: 0 0 30px rgba(41,227,255,0.14), inset 0 0 28px rgba(41,227,255,0.05);
+}
+.go-panel::before, .go-panel::after { content: ''; position: absolute; width: 18px; height: 18px; pointer-events: none; border: 2px solid var(--cyan); filter: drop-shadow(0 0 4px var(--cyan)); }
+.go-panel::before { left: 6px; top: 6px; border-right: 0; border-bottom: 0; border-radius: 6px 0 0 0; }
+.go-panel::after { right: 6px; bottom: 6px; border-left: 0; border-top: 0; border-radius: 0 0 6px 0; }
+.go-panel.on { visibility: visible; animation: goCrt 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes goCrt {
+  0% { transform: scale(0.03, 0.006); opacity: 0; filter: brightness(4); }
+  35% { transform: scale(1, 0.012); opacity: 1; filter: brightness(3); }
+  72% { transform: scale(1, 1.03); filter: brightness(1.4); }
+  100% { transform: none; opacity: 1; filter: none; }
+}
+.go-lbl { font-family: var(--font-d); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); text-align: center; margin: 2px 0 4px; }
+
+/* score final : chiffres à largeur fixe (pas de tremblement pendant le décompte) */
+.go-report { container-type: inline-size; }
+.go-score {
+  --em: 6; font-family: var(--font-d); font-weight: 900; line-height: 1.12; text-align: center; white-space: nowrap; color: #fff;
+  font-size: clamp(30px, 9vw, 64px); font-size: min(var(--smax, 66px), calc(100cqw / var(--em)));
+  text-shadow: 0 0 14px rgba(41,227,255,0.85), 0 0 42px rgba(41,227,255,0.4);
+}
+.go-score i { font-style: normal; display: inline-block; text-align: center; }
+.go-score .d { width: 0.8em; }
+.go-score .s { width: 0.32em; }
+.go-score.punch { animation: goPunch 0.6s cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes goPunch { 0% { transform: scale(1.25); filter: brightness(2.4); } 100% { transform: none; filter: none; } }
+.go-score.gold { color: #fff3c4; text-shadow: 0 0 14px rgba(255,216,74,0.95), 0 0 48px rgba(255,170,40,0.6); }
+
+/* rapport ligne à ligne : libellé tapé, pointillés, valeur */
+.go-stats { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; gap: 1px 20px; font-size: 15px; }
+.go-stats li { display: flex; align-items: baseline; gap: 8px; visibility: hidden; line-height: 1.5; min-width: 0; }
+.go-stats li.on { visibility: visible; }
+.go-stats .k { color: #c9d6ee; font-weight: 600; white-space: nowrap; }
+.go-stats li.on .k { animation: goType 0.32s steps(var(--n, 14)) both; }
+.go-stats .ld { flex: 1; min-width: 10px; border-bottom: 1px dotted rgba(127,147,184,0.45); transform-origin: left; }
+.go-stats li.on .ld { animation: goLead 0.3s 0.1s both; }
+@keyframes goLead { from { transform: scaleX(0); } }
+.go-stats .v { font-family: var(--font-d); font-weight: 700; font-size: 13px; color: var(--cyan); white-space: nowrap; text-shadow: 0 0 8px rgba(41,227,255,0.5); }
+.go-stats li.on .v { animation: goPop 0.3s 0.15s both; }
+@keyframes goPop { 0% { opacity: 0; transform: scale(1.6); } 100% { opacity: 1; transform: none; } }
+
+/* classement : record (or, rayons), rang, hors classement */
+.go-rank { position: relative; text-align: center; margin-top: 10px; min-height: 3.1em; visibility: hidden; }
+.go-rank.on { visibility: visible; }
+.go-rank .rm1 { position: relative; font-family: var(--font-d); font-weight: 900; font-size: clamp(18px, 5.2vw, 30px); letter-spacing: 0.08em; line-height: 1.2; }
+.go-rank .rm1 sup { font-size: 0.55em; }
+.go-rank .rm2 { position: relative; margin-top: 3px; font-size: 14px; color: #9fb0cf; }
+.go-rank.on .rm1 { animation: goStamp 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+.go-rank.on .rm2 { animation: goUp 0.4s 0.35s both; }
+@keyframes goStamp { 0% { transform: scale(2.6) rotate(-5deg); opacity: 0; filter: blur(6px); } 60% { transform: scale(0.95); opacity: 1; filter: none; } 100% { transform: none; opacity: 1; } }
+@keyframes goUp { from { opacity: 0; transform: translateY(10px); } }
+.go-rank.rec .rm1 { color: var(--gold); text-shadow: 0 0 12px rgba(255,216,74,0.95), 0 0 36px rgba(255,160,40,0.6); }
+.go-rank.on.rec .rm1 { animation: goStamp 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) both, goGold 0.9s 0.7s ease-in-out infinite alternate; }
+@keyframes goGold { to { text-shadow: 0 0 20px rgba(255,236,150,1), 0 0 60px rgba(255,170,40,0.9); filter: brightness(1.2); } }
+.go-rank.rec::before {
+  content: ''; position: absolute; left: 50%; top: 0.7em; width: 300px; height: 300px; margin: -150px 0 0 -150px; pointer-events: none;
+  background: repeating-conic-gradient(rgba(255,216,74,0.2) 0 7deg, transparent 7deg 20deg);
+  -webkit-mask: radial-gradient(ellipse 50% 22% at 50% 50%, #000 20%, transparent 100%); mask: radial-gradient(ellipse 50% 22% at 50% 50%, #000 20%, transparent 100%);
+  animation: goRays 9s linear infinite;
+}
+@keyframes goRays { to { transform: rotate(1turn); } }
+.go-rank.top .rm1 { color: var(--cyan); text-shadow: 0 0 12px rgba(41,227,255,0.85); }
+.go-rank.out .rm1 { color: #8fa1c4; }
+
+/* second panneau : initiales (or) puis classement (magenta) */
+.go-side { border-color: rgba(255,61,242,0.36); box-shadow: 0 0 30px rgba(255,61,242,0.14), inset 0 0 28px rgba(255,61,242,0.05); }
+.go-side::before, .go-side::after { border-color: var(--magenta); filter: drop-shadow(0 0 4px var(--magenta)); }
+.go-side.entry { border-color: rgba(255,216,74,0.45); box-shadow: 0 0 30px rgba(255,216,74,0.16), inset 0 0 28px rgba(255,216,74,0.05); }
+.go-side.entry::before, .go-side.entry::after { border-color: var(--gold); filter: drop-shadow(0 0 4px var(--gold)); }
+.go-entry, .go-board { display: none; }
+.go-side.entry .go-entry, .go-side.board .go-board { display: block; }
+
+/* saisie d'initiales façon borne d'arcade */
+.go-entry { text-align: center; }
+.go-entry .go-lbl { color: var(--gold); }
+.go-slots { display: flex; justify-content: center; gap: 14px; margin: 18px 0 14px; }
+.go-slot {
+  position: relative; width: 66px; height: 80px; padding: 0; border-radius: 12px; cursor: pointer; touch-action: manipulation;
+  border: 2px solid rgba(41,227,255,0.28); background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(20,26,50,0.6));
+  color: #e8f4ff; font-family: var(--font-d); font-weight: 900; font-size: 44px; line-height: 1;
+}
+.go-slot.set { color: var(--gold); border-color: rgba(255,216,74,0.6); text-shadow: 0 0 12px rgba(255,216,74,0.8); }
+.go-slot.cur { color: #fff; border-color: var(--cyan); text-shadow: 0 0 14px rgba(41,227,255,0.9); box-shadow: 0 0 20px rgba(41,227,255,0.55), inset 0 0 16px rgba(41,227,255,0.22); animation: goCur 0.8s ease-in-out infinite alternate; }
+.go-slot.cur::before, .go-slot.cur::after { position: absolute; left: 0; right: 0; font-size: 10px; line-height: 1; color: var(--cyan); text-shadow: 0 0 6px var(--cyan); }
+.go-slot.cur::before { content: '▲'; top: -15px; }
+.go-slot.cur::after { content: '▼'; bottom: -15px; }
+@keyframes goCur { to { box-shadow: 0 0 30px rgba(41,227,255,0.9), inset 0 0 22px rgba(41,227,255,0.35); } }
+.go-slot.up { animation: goFlipUp 0.16s ease-out; }
+.go-slot.dn { animation: goFlipDn 0.16s ease-out; }
+.go-slot.cur.up { animation: goFlipUp 0.16s ease-out, goCur 0.8s 0.16s ease-in-out infinite alternate; }
+.go-slot.cur.dn { animation: goFlipDn 0.16s ease-out, goCur 0.8s 0.16s ease-in-out infinite alternate; }
+@keyframes goFlipUp { from { transform: translateY(9px) scaleY(0.6); filter: brightness(2); } }
+@keyframes goFlipDn { from { transform: translateY(-9px) scaleY(0.6); filter: brightness(2); } }
+.go-keys { display: flex; justify-content: center; gap: 12px; margin-top: 20px; }
+.go-key {
+  min-width: 66px; height: 56px; padding: 0 14px; border-radius: 14px; cursor: pointer; touch-action: manipulation;
+  border: 1px solid rgba(41,227,255,0.4); background: rgba(41,227,255,0.08); color: #fff;
+  font-family: var(--font-d); font-size: 20px; font-weight: 700; letter-spacing: 0.06em; transition: transform 0.08s, background 0.15s;
+}
+.go-key:hover { background: rgba(41,227,255,0.2); }
+.go-key:active { transform: scale(0.94); background: rgba(41,227,255,0.3); }
+.go-key.ok { min-width: 104px; font-size: 16px; border-color: var(--gold); color: var(--gold); background: linear-gradient(180deg, rgba(255,216,74,0.24), rgba(255,216,74,0.06)); }
+.go-entry.ready .go-key.ok { animation: goOk 0.6s ease-in-out infinite alternate; }
+@keyframes goOk { to { box-shadow: 0 0 26px rgba(255,216,74,0.85); background: rgba(255,216,74,0.32); color: #fff; } }
+.go-hint { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.go-entry.done .go-slot { color: var(--lime); border-color: var(--lime); text-shadow: 0 0 14px rgba(93,255,143,0.9); box-shadow: 0 0 22px rgba(93,255,143,0.5); animation: goSaved 0.5s both; }
+.go-entry.done .go-slot::before, .go-entry.done .go-slot::after { display: none; }
+@keyframes goSaved { 0% { transform: scale(1.25); filter: brightness(2.5); } }
+
+/* tableau des scores : lignes qui arrivent une à une, balayage lumineux */
+.go-board { position: relative; overflow: hidden; margin: -4px; padding: 4px; }
+.lb { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.lb-row {
+  position: relative; display: grid; grid-template-columns: 2em 3.4em 1fr auto auto; align-items: center; gap: 8px;
+  padding: 4px 10px; border-radius: 8px; font-size: 15px; line-height: 1.35; overflow: hidden; text-align: left;
+  background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06);
+}
+.lb-row .rk { font-family: var(--font-d); font-size: 11px; font-weight: 700; color: var(--muted); }
+.lb-row .nm { font-family: var(--font-d); font-weight: 700; letter-spacing: 0.14em; color: #fff; white-space: nowrap; }
+.lb-row .ld { height: 0; border-bottom: 1px dotted rgba(127,147,184,0.35); transform: translateY(4px); }
+.lb-row .lv { font-family: var(--font-d); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; }
+.lb-row .sc { font-family: var(--font-d); font-weight: 700; font-size: 14px; color: var(--cyan); text-align: right; white-space: nowrap; text-shadow: 0 0 8px rgba(41,227,255,0.45); }
+.lb-row.r1 { background: linear-gradient(90deg, rgba(255,216,74,0.2), rgba(255,216,74,0.04)); border-color: rgba(255,216,74,0.5); }
+.lb-row.r1 .rk, .lb-row.r1 .nm, .lb-row.r1 .sc { color: var(--gold); text-shadow: 0 0 10px rgba(255,216,74,0.75); }
+.lb-row.r1::after { content: ''; position: absolute; top: 0; bottom: 0; left: -40%; width: 30%; pointer-events: none; background: linear-gradient(100deg, transparent, rgba(255,246,200,0.35), transparent); animation: goShine 3.2s 1.5s ease-in-out infinite; }
+@keyframes goShine { 0% { transform: translateX(0); } 45%, 100% { transform: translateX(560%); } }
+.lb-row.r2 .sc { color: #e3ecff; text-shadow: 0 0 8px rgba(220,232,255,0.5); }
+.lb-row.r3 .sc { color: #ffb27a; text-shadow: 0 0 8px rgba(255,160,90,0.5); }
+.lb-row.empty > * { opacity: 0.3; }
+.lb-row.me { background: linear-gradient(90deg, rgba(255,61,242,0.36), rgba(41,227,255,0.16)); border-color: var(--magenta); }
+.lb-row.me .rk, .lb-row.me .nm { color: #fff; }
+.lb-row.you { margin-top: 6px; border: 1px dashed rgba(255,61,242,0.6); background: rgba(255,61,242,0.1); }
+.lb-row.you .nm { color: var(--magenta); }
+.lb.on .lb-row { animation: goRow 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(0.3s + var(--i) * 85ms) both; }
+.lb.on .lb-row.me, .lb.on .lb-row.you { animation: goRow 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(0.3s + var(--i) * 85ms) both, goMe 0.9s calc(0.8s + var(--i) * 85ms) ease-in-out infinite alternate; }
+@keyframes goRow { 0% { opacity: 0; transform: translateX(80px) skewX(-22deg); filter: brightness(3); } 60% { opacity: 1; transform: translateX(-6px) skewX(4deg); } 100% { opacity: 1; transform: none; filter: none; } }
+@keyframes goMe { from { box-shadow: 0 0 6px rgba(255,61,242,0.3); } to { box-shadow: 0 0 22px rgba(255,61,242,0.9), inset 0 0 12px rgba(255,255,255,0.18); } }
+.go-scan { position: absolute; left: 0; right: 0; top: 0; height: 34%; pointer-events: none; opacity: 0; background: linear-gradient(180deg, transparent, rgba(41,227,255,0.12) 42%, rgba(255,255,255,0.2) 50%, rgba(41,227,255,0.12) 58%, transparent); }
+.go-board.on .go-scan { animation: goScan 4.6s 1.6s linear infinite; }
+@keyframes goScan { 0% { transform: translateY(-100%); opacity: 1; } 60% { transform: translateY(300%); opacity: 1; } 60.01%, 100% { transform: translateY(300%); opacity: 0; } }
+
+/* menu, onglets (petits écrans), aide en bas à droite */
+.go-tabs { display: none; gap: 6px; justify-content: center; }
+.go-tabs button { font-family: var(--font-d); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; padding: 7px 14px; border-radius: 20px; cursor: pointer; border: 1px solid rgba(41,227,255,0.25); background: rgba(4,6,14,0.6); color: var(--muted); }
+.go-tabs button.cur { color: #fff; border-color: var(--cyan); background: rgba(41,227,255,0.16); box-shadow: 0 0 12px rgba(41,227,255,0.35); }
+.go-menu { display: flex; justify-content: center; gap: 10px; width: min(450px, 100%); visibility: hidden; }
+.go-menu.on { visibility: visible; animation: goUp 0.5s 0.2s both; }
+.go-menu .btn { flex: 1 1 0; max-width: 220px; }
+.go-skip { position: absolute; right: calc(14px + var(--safe-r)); bottom: calc(10px + var(--safe-b)); font-family: var(--font-d); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(159,176,207,0.8); pointer-events: none; animation: goBlinkSoft 1.6s ease-in-out infinite alternate; }
+@keyframes goBlinkSoft { from { opacity: 0.35; } to { opacity: 0.9; } }
+.go-stage.idle .go-skip { animation: none; opacity: 0.55; }
+
+/* feux d'artifice (particules DOM) */
+.go-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.fw { position: absolute; width: 0; height: 0; }
+.fw i { position: absolute; left: -3.5px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 2px var(--c), 0 0 14px 4px var(--c); animation: goFw var(--d, 1.2s) cubic-bezier(0.12, 0.8, 0.3, 1) both; }
+@keyframes goFw { 0% { transform: translate(0, 0) scale(1.4); opacity: 1; } 75% { opacity: 1; } 100% { transform: translate(var(--x), var(--y)) scale(0.2); opacity: 0; } }
+.fw .core { position: absolute; left: -50px; top: -50px; width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle, #fff 0, var(--c) 25%, transparent 68%); animation: goCore 0.6s ease-out both; }
+@keyframes goCore { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(2.4); opacity: 0; } }
+
+/* grand écran : deux colonnes, le second panneau s'ouvre en glissant */
+.go-wide .go-side {
+  flex: 0 1 430px; max-width: 0; padding-left: 0; padding-right: 0; margin-left: -16px; border-width: 0; opacity: 0; overflow: hidden;
+  transition: max-width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), padding 0.7s, margin 0.7s, opacity 0.35s 0.4s;
+}
+.go-wide .go-side.on { max-width: 430px; padding-left: 18px; padding-right: 18px; margin-left: 0; border-width: 1px; opacity: 1; animation: none; }
+/* petit écran : une vue à la fois (rapport, initiales, classement) */
+.go-stage:not(.go-wide) .go-body { flex-direction: column; align-items: center; gap: 12px; }
+.go-stage:not(.go-wide) .go-panel { flex: none; width: min(450px, 100%); }
+.go-stage:not(.go-wide) .go-side:not(.on) { display: none; }
+.go-stage:not(.go-wide)[data-view="entry"] .go-stats { display: none; }
+.go-stage:not(.go-wide)[data-view="board"] .go-report { display: none; }
+.go-stage:not(.go-wide)[data-view="report"] .go-side { display: none; }
+.go-stage.idle:not(.go-wide) .go-tabs { display: flex; }
+
+/* cinématique passée : état final immédiat */
+.go-fast .go-head.on .go-title { animation: goBreath 3.4s ease-in-out infinite alternate; }
+.go-fast .go-head.on .go-title .sl, .go-fast .go-head.on .go-sub, .go-fast .go-panel.on, .go-fast .go-stats li.on > *, .go-fast .go-signal *, .go-fast .go-flash { animation: none; }
+
+@media (max-width: 520px) { .go-sig2 .cd { display: none; } }
+@media (max-width: 420px) {
+  .go-sub { letter-spacing: 0.15em; white-space: nowrap; }
+  .go-panel { padding: 12px 12px 14px; }
+  .go-stats { font-size: 14px; }
+  .lb-row { gap: 6px; padding: 4px 8px; grid-template-columns: 1.8em 3.2em 1fr auto; }
+  .lb-row .lv { display: none; }
+  .go-slots { gap: 12px; }
+}
+@media (max-height: 560px) {
+  .go-wrap { gap: 8px; padding-top: calc(8px + var(--safe-t)); padding-bottom: calc(22px + var(--safe-b)); }
+  .go-title { font-size: clamp(20px, 6vh, 34px); }
+  .go-sub { font-size: 9px; margin-top: 2px; }
+  .go-panel { padding: 8px 14px 10px; }
+  .go-score { --smax: 40px; }
+  .go-stats { grid-template-columns: 1fr 1fr; font-size: 13px; margin: 6px 0 2px; gap: 0 16px; }
+  .go-stats li { line-height: 1.38; }
+  .go-stats .v { font-size: 11px; }
+  .go-rank { margin-top: 4px; min-height: 0; }
+  .go-rank .rm1 { font-size: 18px; }
+  .go-rank .rm2 { font-size: 12px; }
+  .lb { gap: 2px; margin-top: 2px; }
+  .lb-row { padding: 1px 8px; font-size: 13px; line-height: 1.3; }
+  .lb-row .sc { font-size: 12px; }
+  .go-slots { margin: 12px 0 8px; }
+  .go-slot { width: 54px; height: 62px; font-size: 34px; }
+  .go-keys { margin-top: 14px; }
+  .go-key { height: 48px; }
+  .go-hint { margin-top: 6px; font-size: 12px; }
+  .go-menu .btn { padding: 9px 14px; }
+  .go-stage.idle .go-skip { display: none; }
+}
+@media (max-height: 560px) and (max-width: 759px) {
+  .go-stats { grid-template-columns: 1fr; font-size: 12px; }
+  .go-stats li { line-height: 1.22; }
+  .go-stats .v { font-size: 10px; }
+}
+@media (max-height: 420px) {
+  .go-wrap { gap: 6px; padding-top: calc(6px + var(--safe-t)); padding-bottom: calc(6px + var(--safe-b)); }
+  .go-panel { padding: 6px 12px 8px; }
+  .go-title { font-size: 20px; }
+  .go-sub { font-size: 8px; }
+  .go-score { --smax: 34px; }
+  .go-rank .rm1 { font-size: 16px; }
+  .go-rank .rm2 { font-size: 11px; margin-top: 0; }
+  .lb { gap: 1px; }
+  .lb-row { line-height: 1.2; padding: 0 8px; }
+  .lb-row.you { margin-top: 3px; }
+  .go-slots { margin: 10px 0 6px; }
+  .go-slot { width: 48px; height: 54px; font-size: 30px; }
+  .go-keys { margin-top: 12px; }
+  .go-key { height: 44px; }
+  .go-hint { display: none; }
+  .go-menu .btn { padding: 7px 12px; }
+}
+
+/* meilleurs scores de l'écran d'accueil : même habillage que le tableau de fin de session */
+#hiscores.lb { padding: 0; max-width: 340px; margin: 0 auto; }
+#hiscores .lb-row { grid-template-columns: 1.8em 3.2em 1fr auto; padding: 2px 10px; font-size: 14px; animation: goRow 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(0.2s + var(--i) * 70ms) both; }
+#hiscores .lb-row span { float: none; }
+#hiscores .lb-row .nm { font-family: var(--font-d); font-size: 13px; color: #fff; }
+#hiscores .lb-row .sc { font-family: var(--font-d); font-size: 13px; color: var(--cyan); }
+#hiscores .lb-row.r1 .nm, #hiscores .lb-row.r1 .sc { color: var(--gold); }
+#hiscores .lb-row .lv { display: none; }
+#hiscores .empty { margin-left: 0; }
+
+/* réglages d'accessibilité */
+#app.rm .go-stage *, #app.rm .go-stage *::before, #app.rm .go-stage *::after, #app.rm #hiscores .lb-row { animation: none !important; transition: none !important; }
+#app.rfx .go-sig.glx::before, #app.rfx .go-sig.glx::after, #app.rfx .go-title.glx::before, #app.rfx .go-title.glx::after, #app.rfx .go-tear, #app.rfx .go-rank.rec::before { display: none; }
+#app.rfx .go-flash.on { animation-name: goFlashSoft; }
+#app.rm .go-signal.on .go-sig2 { opacity: 1; }
 
 </style>
 </head>
@@ -470,26 +836,68 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
     </div>
   </section>
 
-  <!-- Fin de partie -->
-  <section id="screen-over" class="screen hidden">
-    <div class="card over-card">
-      <h2>FIN DE SESSION</h2>
-      <div class="final-score" id="final-score">0</div>
-      <div id="final-rank" class="muted"></div>
-      <div id="final-stats" class="stats"></div>
-      <form id="name-form" class="name-form hidden" autocomplete="off">
-        <label>Vos initiales <input id="name-input" maxlength="3" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="OPR"></label>
-        <button class="btn primary" type="submit">Enregistrer</button>
-      </form>
-      <div class="menu">
-        <button class="btn primary" data-action="play">Rejouer</button>
-        <button class="btn" data-action="title">Menu</button>
+  <!-- Fin de partie : cinématique, rapport, initiales et tableau des scores (src/ui/gameover.js) -->
+  <section id="screen-over" class="screen go hidden" aria-label="Fin de session">
+    <div class="go-stage">
+      <div class="go-veil"></div>
+      <div class="go-flash"></div>
+      <div class="go-signal" aria-hidden="true">
+        <div class="go-sig glx" data-text="SIGNAL PERDU">SIGNAL PERDU</div>
+        <div class="go-sig2">Liaison noyau interrompue<span class="cd"> · code 0x4E554C4C</span></div>
+        <i class="go-tear"></i><i class="go-tear"></i><i class="go-tear"></i>
       </div>
+      <div class="go-status" aria-live="polite">
+        <div class="go-pw"><span>Alimentation du plateau</span><span class="go-bar"><i></i></span><b>100 %</b></div>
+        <div class="go-msg"></div>
+      </div>
+      <div class="go-wrap scrollable">
+        <header class="go-head">
+          <h2 class="go-title glx" data-text="FIN DE SESSION">FIN DE SESSION</h2>
+          <div class="go-sub">Station Cortex-9 · Rapport d'opération</div>
+        </header>
+        <div class="go-tabs" role="tablist"><button type="button" data-view="report">Rapport</button><button type="button" data-view="board">Classement</button></div>
+        <div class="go-body">
+          <div class="go-panel go-report">
+            <div class="go-lbl">Score final</div>
+            <div class="go-score" id="final-score" aria-live="polite"></div>
+            <ul class="go-stats" id="final-stats"></ul>
+            <div class="go-rank" id="final-rank" aria-live="polite"></div>
+          </div>
+          <div class="go-panel go-side">
+            <div class="go-entry">
+              <div class="go-lbl">Inscrivez vos initiales</div>
+              <div class="go-slots">
+                <button type="button" class="go-slot" aria-label="Initiale 1"></button>
+                <button type="button" class="go-slot" aria-label="Initiale 2"></button>
+                <button type="button" class="go-slot" aria-label="Initiale 3"></button>
+              </div>
+              <div class="go-keys">
+                <button type="button" class="go-key" data-key="prev" aria-label="Lettre précédente">◀</button>
+                <button type="button" class="go-key ok" data-key="ok">OK</button>
+                <button type="button" class="go-key" data-key="next" aria-label="Lettre suivante">▶</button>
+              </div>
+              <div class="go-hint"></div>
+            </div>
+            <div class="go-board">
+              <div class="go-lbl">Meilleurs scores</div>
+              <ol class="lb"></ol>
+              <i class="go-scan"></i>
+            </div>
+          </div>
+        </div>
+        <div class="go-menu">
+          <button class="btn primary" data-action="play">Rejouer</button>
+          <button class="btn" data-action="title">Menu</button>
+        </div>
+      </div>
+      <div class="go-skip"></div>
+      <div class="go-sparks" aria-hidden="true"></div>
     </div>
   </section>
 
   <noscript><p class="noscript">Ce jeu nécessite JavaScript.</p></noscript>
 </div>
+<script>window.LN_ASSET_BASE = '../';</script>
 <script>
 (function () {
 'use strict';
@@ -1302,7 +1710,9 @@ function buildLanes(world, right) {
 const WORLD = { x0: 0, y0: -150, w: 600, h: 1250 };
 
 // masques de couches (bit n = couche n)
-const M_PF = 1, M_RAMP = 2, M_DECK = 4;
+const M_PF = 1;
+const M_RAMP = 2;
+const M_DECK = 4;
 
 const T = {
   ...L,
@@ -1389,10 +1799,12 @@ function buildCortexTable(world) {
 
   // --- Orbites (sous le pont) --------------------------------------------
   const O = T.orbitInner;
-  // séparateurs orbite / rampe : pas de poche morte entre les deux tirs
+  // À gauche, la rampe du pont monte jusqu'au plafond : la poche entre orbite et rampe est
+  // fermée par un séparateur. À droite, la rampe s'arrête plus bas : la poche reste ouverte
+  // en haut, c'est donc un couloir de passage (le fermer en bas créait un coin piège).
   world.poly([[121, 486], [90, 446], [62, 282], [62, 150]], guide);
   world.arc(O.cx, O.cy, O.r, -Math.PI, 0, { ...guide, segLen: 12, style: 'orbitInner' });
-  world.poly([[500, 150], [500, 282], [472, 446], [441, 486]], guide);
+  world.poly([[500, 150], [500, 282], [472, 446]], guide);
   R.dividers = [[90, 446], [472, 446]].map(([x, y]) => world.circle(x, y, 5, { mat: 'post', style: 'post' }));
   // plafond du plateau central (bord avant du pont)
   const cw = Math.sqrt(O.r * O.r - (O.cy - T.ceilY) ** 2);
@@ -1473,6 +1885,9 @@ function buildDeck(world) {
   R.guideR = [[rx, ry], eR];
   world.seg(lx, ly, eL[0], eL[1], deckGuide);
   world.seg(rx, ry, eR[0], eR[1], deckGuide);
+  // tabliers sous les petits batteurs : guident la chute vers l'ouverture centrale
+  world.seg(D.flipL[0] - 5, D.flipL[1] + 10, D.drainX0 + 2, D.drainY + 2, { mat: 'metal', r: 2.5, mask: M_DECK, style: 'none' });
+  world.seg(D.flipR[0] + 5, D.flipR[1] + 10, D.drainX1 - 2, D.drainY + 2, { mat: 'metal', r: 2.5, mask: M_DECK, style: 'none' });
   const fo = { length: D.flipLen, baseR: D.baseR, tipR: D.tipR, mask: M_DECK, idSuffix: 'deck' };
   R.flipL = world.addFlipper(new Flipper(D.flipL[0], D.flipL[1], 1, fo));
   R.flipR = world.addFlipper(new Flipper(D.flipR[0], D.flipR[1], -1, fo));
@@ -1493,7 +1908,7 @@ function buildDeck(world) {
   return R;
 }
 
-return { MIRROR, mx, L, buildFrame, buildBank, buildSling, buildLanes, WORLD, M_PF, T, SHOTS, domePoint, buildCortexTable };
+return { MIRROR, mx, L, buildFrame, buildBank, buildSling, buildLanes, WORLD, M_PF, M_RAMP, M_DECK, T, SHOTS, domePoint, buildCortexTable };
 })();
 
 // ===== src/render/artKit.js =====
@@ -2027,6 +2442,7 @@ class TableArt {
   constructor(r) {
     this.r = r;
     this.eye = { x: 0, y: 0, blink: 0, nextBlink: 3 };
+    this.ring = RING;              // position de l'œil (extinction de fin de partie)
     this.flashers = { tl: 0, tr: 0, bl: 0, br: 0 };
     this.lastScore = 0;
   }
@@ -2491,7 +2907,7 @@ class TableArt {
     r.blitLayer(ctx, r.layer('table', (g) => this.staticLayer(g, table)));
     const lamps = table.shotLamps();
     this._inserts(ctx, table, game, lamps, t);
-    this._eye(ctx, table, game);
+    if (!r.shut) this._eye(ctx, table, game);   // pendant l'extinction, dessiné par-dessus le voile
     this._lanes(ctx, table, t);
     this._bankTargets(ctx, table, t);
     this._drops(ctx, table, t);
@@ -2578,7 +2994,8 @@ class TableArt {
   }
 
   // Œil de LUMEN au centre de l'emblème : suit la bille, rougit quand NULL parle.
-  _eye(ctx, table, game) {
+  // S (extinction de fin de partie) : LUMEN ferme l'œil, puis NULL ouvre le sien (pupille fendue).
+  _eye(ctx, table, game, S = null) {
     const r = this.r, E = this.eye;
     const { x, y } = RING;
     const ball = table.world.balls.find(b => b.state === 'free') || table.world.balls[0];
@@ -2590,17 +3007,34 @@ class TableArt {
     E.blink = Math.max(0, E.blink - 0.12);
     const msg = game.lumen.current;
     const nullMode = msg && msg.persona === 'null';
-    const col = nullMode ? C.red : C.cyan;
-    const talk = msg ? 0.5 + 0.5 * Math.sin(r.time * 22) : 0;
-    r.glow(x, y, 110, col, 0.3 + 0.25 * talk);
-    const iris = ctx.createRadialGradient(x + E.x, y + E.y, 1, x + E.x, y + E.y, 22);
-    iris.addColorStop(0, '#ffffff'); iris.addColorStop(0.25, col); iris.addColorStop(1, rgba(col, 0.05));
+    let col = nullMode ? C.red : C.cyan;
+    let talk = msg ? 0.5 + 0.5 * Math.sin(r.time * 22) : 0;
+    let open = 1 - E.blink * 0.92, ex = E.x, ey = E.y, slit = false, gk = 1;
+    if (S) {
+      if (S.red > 0) {
+        col = C.red; open = S.red; slit = true; gk = 1.4 * S.red;
+        talk = 0.5 + 0.5 * Math.sin(r.time * 2.4);
+        ex = Math.sin(r.time * 0.6) * 7; ey = 0;
+        if (Math.random() < 0.05 && !r.settings.reducedFx) ex += (Math.random() - 0.5) * 10;
+      } else { col = C.cyan; open = Math.min(open, 1 - S.close); talk = 0; gk = open; }
+    }
+    r.glow(x, y, slit ? 110 + 170 * S.red : 110, col, (0.3 + 0.25 * talk) * gk);
+    if (open < 0.04) {
+      // paupière close : un simple trait
+      ctx.strokeStyle = rgba(col, 0.35); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - 24, y); ctx.lineTo(x + 24, y); ctx.stroke();
+      return;
+    }
+    const iris = ctx.createRadialGradient(x + ex, y + ey, 1, x + ex, y + ey, 22);
+    iris.addColorStop(0, slit ? '#ffd0d8' : '#ffffff'); iris.addColorStop(0.25, col); iris.addColorStop(1, rgba(col, 0.05));
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(x, y, 27, 27 * (1 - E.blink * 0.92), 0, 0, TAU); ctx.clip();
+    ctx.beginPath(); ctx.ellipse(x, y, 27, 27 * open, 0, 0, TAU); ctx.clip();
     ctx.fillStyle = '#04060c'; ctx.fillRect(x - 30, y - 30, 60, 60);
-    ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(x + E.x, y + E.y, 18 + talk * 3, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#02030a'; ctx.beginPath(); ctx.arc(x + E.x * 1.1, y + E.y * 1.1, 5.5, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(x + E.x - 6, y + E.y - 7, 2.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(x + ex, y + ey, 18 + talk * 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#02030a'; ctx.beginPath();
+    if (slit) ctx.ellipse(x + ex * 1.1, y + ey * 1.1, 2.6, 15, 0, 0, TAU); else ctx.arc(x + ex * 1.1, y + ey * 1.1, 5.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(x + ex - 6, y + ey - 7, 2.6, 0, TAU); ctx.fill();
     ctx.restore();
   }
 
@@ -2963,6 +3397,10 @@ class PostFX {
     ctx.globalCompositeOperation = 'source-over';
 
     if (doContent) {
+      // écritures limitées à la zone du plateau (info.clip, px du canvas) : un canvas
+      // transparent ne doit pas recevoir de voile hors du plateau
+      const clip = info && info.clip;
+      if (clip) { ctx.save(); ctx.beginPath(); ctx.rect(clip.x, clip.y, clip.w, clip.h); ctx.clip(); }
       // 1) lectures du canvas, toutes avant la première écriture
       const bq = rfx ? 0 : q;
       const bloom = this._bloomRead(canvas, bq);
@@ -2976,6 +3414,7 @@ class PostFX {
         this._split(ctx, Math.max(1, Math.round(d * this.dpr)), Math.min(0.55, 0.2 + 0.4 * ck));
       }
       if (gk > 0.01) { if (rfx || rm) this._tint(ctx, gk); else this._blocks(ctx, gk); }
+      if (clip) ctx.restore();
     }
     if (doOverlay) {
       this._edgesFx(ctx, rect, inten, rfx);
@@ -4270,7 +4709,7 @@ return { Backdrop };
 // ===== src/render/renderer.js =====
 __mod['src/render/renderer.js'] = (function () {
 const { TABLE_W, TABLE_H, COLORS } = __mod['src/config.js'];
-const { lerp, mulberry32, rgba, clamp, TAU } = __mod['src/util/math.js'];
+const { lerp, mulberry32, rgba, clamp, clamp01, smoothstep, TAU } = __mod['src/util/math.js'];
 const { glowSprite } = __mod['src/render/sprites.js'];
 const { FX } = __mod['src/render/fx.js'];
 const { TableArt, drawPlate, drawStaticPrims, drawSling } = __mod['src/render/tableArt.js'];
@@ -4281,6 +4720,7 @@ const FONT = '"Rajdhani", "Segoe UI", system-ui, sans-serif';
 const FONT_D = '"Orbitron", "Rajdhani", "Segoe UI", sans-serif';
 
 const BALL_COLORS = ['#29e3ff', '#ff3df2', '#ffd84a', '#5dff8f'];
+const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // Rendu Canvas 2D : caméra monde, calques statiques pré-rendus, scènes, effets.
 class Renderer {
@@ -4317,7 +4757,15 @@ class Renderer {
     this.dprCap = 2;
     // étendue du monde affiché (le plateau long commence au-dessus de y = 0)
     this.bounds = { x0: 0, y0: 0, w: TABLE_W, h: TABLE_H };
+    this.shut = null;              // extinction du plateau (fin de partie)
+    this.lampK = null;             // atténuation des halos selon y (pendant l'extinction)
   }
+
+  // Fin de partie : scintillement, vague d'extinction du bas vers le haut, l'œil de LUMEN
+  // se ferme puis celui de NULL s'ouvre (ambiance rouge). Durées en secondes.
+  shutdown(o = {}) { this.shut = { t: 0, pre: o.pre ?? 0.45, dur: o.dur ?? 2.8, redAt: o.redAt ?? 3.65, front: 1e4, close: 0, red: 0, flick: 1, sparkT: 0 }; }
+  shutdownEnd() { if (this.shut) this.shut.t = Math.max(this.shut.t, this.shut.redAt + 1.5); }
+  powerOn() { this.shut = null; this.lampK = null; }
 
   setBounds(b) {
     if (b.x0 === this.bounds.x0 && b.y0 === this.bounds.y0 && b.w === this.bounds.w && b.h === this.bounds.h) return;
@@ -4339,7 +4787,8 @@ class Renderer {
   }
 
   // Fond et calque écran plein écran (canevas séparés, jamais inclinés).
-  resizeBackdrop(W, H, screenRect) {
+  resizeBackdrop(W, H, screenRect, cv) {
+    if (cv) this.cv = cv;
     const dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
     this.SW = W; this.SH = H;
     if (screenRect) this.screenRect = screenRect;
@@ -4355,7 +4804,15 @@ class Renderer {
     if (ov && R) {
       const cx = R.x + R.w / 2, cy = R.y + R.h / 2;
       ov.vig.style.background = `radial-gradient(ellipse ${Math.max(R.w * 0.9, W * 0.55)}px ${Math.max(R.h * 0.75, H * 0.6)}px at ${cx}px ${cy}px, rgba(0,0,0,0) 55%, rgba(0,0,0,0.5) 100%)`;
-      Object.assign(ov.frame.style, { left: (R.x - 6) + 'px', top: (R.y - 6) + 'px', width: (R.w + 12) + 'px', height: (R.h + 12) + 'px' });
+      const v = this.view, C = this.cv;
+      if (C && C.transform !== 'none') {
+        Object.assign(ov.frame.style, {
+          left: (C.left + v.x - 6) + 'px', top: (C.top + v.y - 6) + 'px', width: (v.w + 12) + 'px', height: (v.h + 12) + 'px',
+          transform: C.transform, transformOrigin: `${v.w / 2 + 6}px ${v.h + 6}px`,
+        });
+      } else {
+        Object.assign(ov.frame.style, { left: (R.x - 6) + 'px', top: (R.y - 6) + 'px', width: (R.w + 12) + 'px', height: (R.h + 12) + 'px', transform: 'none' });
+      }
     }
   }
 
@@ -4443,6 +4900,7 @@ class Renderer {
     this.time += dt;
     this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
     const ctx = this.ctx;
+    if (this.shut) { if (game.state === 'over') this._shutStep(dt); else this.powerOn(); }
     this._mood(game);
     const info = { rect: this.screenRect, mood: this.mood, intensity: this.intensity, level: game.level };
     if (this.backdrop) this.backdrop.draw(this.bgCtx, this.time, info);
@@ -4494,11 +4952,12 @@ class Renderer {
     this.worldTransform(cam);
     this.fx.draw(ctx, this.font);
 
-    if (game.state === 'play' && game.resumeT > 0) this._countdown(game.resumeT);
+    if (game.state === 'play' && game.resumeT > 0) { this.screenTransform(); this._countdown(game.resumeT); }
     // post-traitement du plateau (bloom, glitch)
     const fps = this.fpsAvg;
     this.post.setFps(fps);
-    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content' });
+    const v = this.view, d = this.dpr;
+    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content', clip: { x: v.x * d, y: v.y * d, w: v.w * d, h: v.h * d } });
     // calque écran (HTML) : flash, fondu, bords néon selon l'ambiance, cadre des impulsions
     if (this.ov) {
       this._overlay(dt, tv);
@@ -4548,6 +5007,7 @@ class Renderer {
     let mood = 'calm';
     if ((msg && msg.persona === 'null') || (game.minigame && game.minigame.sector === 'core')) mood = 'null';
     else if (t.multiball || game.bonus.mult >= 3 || t.combo.count >= 4 || (game.minigame && game.minigame.timeLeft < 10)) mood = 'hot';
+    if (this.shut && this.shut.red > 0) mood = 'null';
     this.mood = mood;
     const target = Math.min(1, t.combo.count / 8 + (game.bonus.mult - 1) * 0.15 + (t.multiball ? 0.4 : 0));
     this.intensity += (target - this.intensity) * 0.05;
@@ -4559,23 +5019,105 @@ class Renderer {
     const v = this.view, B = this.bounds;
     if (this.debugCam) return this.debugCam;   // inspection visuelle (outils de développement)
     const cx = B.x0 + B.w / 2, cy = B.y0 + B.h / 2;
-    if (!v.follow) { this.camY = cy; return { x: cx, y: cy, zoom: 1 }; }
+    if (!v.follow) {
+      this.camY = cy;
+      // extinction : lente avancée vers l'œil (effet de ralenti)
+      if (this.shut && !this.settings.reducedMotion) { const k = smoothstep(0, 4, this.shut.t); return { x: cx, y: lerp(cy, 560, 0.22 * k), zoom: 1 + 0.07 * k }; }
+      return { x: cx, y: cy, zoom: 1 };
+    }
     const half = v.h / v.scale / 2;
     let target = B.y0 + B.h - half;
     const balls = game.scene === 'minigame' && game.minigame ? game.minigame.world.balls : game.table.world.balls;
-    let lowest = -1;
+    let lowest = -Infinity;
     for (const b of balls) if (b.y > lowest) lowest = b.y;
-    if (lowest >= 0 && game.state === 'play') target = lowest + half * 0.25;
+    if (balls.length && game.state === 'play') target = lowest + half * 0.25;
     target = clamp(target, B.y0 + half, B.y0 + B.h - half);
     if (this.camY === undefined) this.camY = target;
     this.camY += (target - this.camY) * Math.min(1, dt * 5);
     return { x: cx, y: this.camY, zoom: 1 };
   }
 
+  // ------------------------------------------------------------ extinction (fin de partie)
+  _shutStep(dt) {
+    const S = this.shut, B = this.bounds, yb = B.y0 + B.h;
+    S.t += dt;
+    S.u = clamp01((S.t - S.pre) / S.dur);
+    S.front = S.t < S.pre ? 1e4 : yb + 20 - (B.h + 280) * smoothstep(0, 1, S.u);
+    S.flick = S.t < S.pre ? (hash(Math.floor(S.t * 22)) > 0.45 ? 1 : 0.2) : 1;
+    // l'œil se ferme quand la vague l'atteint, puis NULL ouvre le sien
+    S.close = clamp01((this.art.ring.y + 60 - S.front) / 110);
+    S.red = clamp01((S.t - S.redAt) / 1.1);
+    // étincelles des lampes qui grillent sur l'arête de coupure
+    if (S.u > 0 && S.u < 1 && !this.settings.reducedFx) {
+      S.sparkT -= dt;
+      if (S.sparkT <= 0) { S.sparkT = 0.05 + Math.random() * 0.08; this.fx.spark(40 + Math.random() * 500, S.front + Math.random() * 30, 700 + Math.random() * 900); }
+    }
+  }
+
+  // atténuation des halos du plateau à la hauteur y (1 = allumé, 0 = éteint)
+  _lamp(y) {
+    const S = this.shut;
+    if (S.t < S.pre) return S.flick;
+    const d = y - S.front;
+    if (d < -30) return 1;
+    if (d > 80) return 0;
+    const fl = hash(Math.floor(y / 36) * 7.3 + Math.floor(this.time * 16)) > 0.45 ? 1 : 0.15;
+    return fl * clamp01(1 - (d + 30) / 110);
+  }
+
+  // Voile d'obscurité sous la vague, arête électrique, alarmes de NULL, puis l'œil par-dessus.
+  _shutdown(ctx, game) {
+    const S = this.shut, B = this.bounds, t = this.time;
+    const yb = B.y0 + B.h, x0 = B.x0, w = B.w, DARK = 0.9, FADE = 70;
+    ctx.globalCompositeOperation = 'source-over';
+    if (S.t < S.pre) {
+      if (S.flick < 1) { ctx.globalAlpha = 0.55; ctx.fillStyle = '#030208'; ctx.fillRect(x0, B.y0, w, B.h); ctx.globalAlpha = 1; }
+    } else {
+      const f = Math.max(B.y0 - 120, S.front);
+      if (f < yb) {
+        const g = ctx.createLinearGradient(0, f, 0, f + FADE);
+        g.addColorStop(0, 'rgba(3,2,8,0)'); g.addColorStop(1, `rgba(3,2,8,${DARK})`);
+        ctx.fillStyle = g; ctx.fillRect(x0, f, w, FADE);
+        if (f + FADE < yb) { ctx.fillStyle = `rgba(3,2,8,${DARK})`; ctx.fillRect(x0, f + FADE, w, yb - f - FADE); }
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      if (S.u < 1) {
+        // arête de coupure : ligne électrique qui remonte le plateau, lampes qui grillent juste dessous
+        const a = 0.75 + 0.25 * Math.sin(t * 47);
+        ctx.globalAlpha = 0.85 * a;
+        ctx.drawImage(glowSprite('#ff2a50', 64), x0 - 80, f - 55, w + 160, 110);
+        ctx.globalAlpha = a; ctx.fillStyle = '#fff0f3'; ctx.fillRect(x0 + 20, f - 1, w - 40, 3);
+        const n = this.settings.reducedFx ? 4 : 14;
+        for (let i = 0; i < n; i++) {
+          const x = x0 + 30 + Math.random() * (w - 60), y = f + Math.random() * 60, s = 18 + Math.random() * 30;
+          ctx.globalAlpha = Math.random() * 0.8;
+          ctx.drawImage(glowSprite(i % 3 ? '#ff2a50' : '#ffffff', 32), x - s / 2, y - s / 2, s, s);
+        }
+      }
+      if (S.red > 0) {
+        // NULL aux commandes : lueur rouge qui respire, balises d'alarme en haut du plateau
+        const p = 0.5 + 0.5 * Math.sin(t * 2.2);
+        ctx.globalAlpha = S.red * (0.12 + 0.1 * p);
+        ctx.drawImage(glowSprite('#ff1040', 64), x0 - 220, this.art.ring.y - 560, w + 440, 1120);
+        [[44, -30, 0], [556, -30, Math.PI]].forEach(([x, y, ph]) => {
+          const k = Math.sin(t * 4.2 + ph) > 0.2 ? 1 : 0.12;
+          ctx.globalAlpha = S.red * 0.75 * k;
+          ctx.drawImage(glowSprite('#ff2050', 64), x - 110, y - 110, 220, 220);
+        });
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    this.art._eye(ctx, game.table, game, S);
+  }
+
   _scene(game, name, mg) {
     const ctx = this.ctx;
     if (name === 'table') {
+      if (this.shut) this.lampK = (y) => this._lamp(y);
       this.art.draw(ctx, game.table, game);
+      this.lampK = null;
+      if (this.shut) this._shutdown(ctx, game);
     } else if (mg) {
       this.blitLayer(ctx, this.layer('mg-' + mg.sector + '-' + mg.level, (g) => this._arenaStatic(g, mg)));
       mg.render(ctx, this, game);
@@ -4624,7 +5166,7 @@ class Renderer {
     const prog = h.relaunch ? 'RELANCE…' : h.progress;
     this.text(prog, 300, y0 + 56, 16, '#e8f4ff', 'center', 0.95);
     // chrono
-    const u = Math.max(0, h.timeLeft) / h.timeLimit;
+    const u = clamp(Math.max(0, h.timeLeft) / h.timeLimit, 0, 1);
     const hurry = h.timeLeft < 10;
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(60, y0 + 76, 480, 10);
     ctx.fillStyle = hurry ? (Math.sin(t * 14) > 0 ? '#ff4060' : '#ffb52e') : col;
@@ -4632,7 +5174,15 @@ class Renderer {
     this.glow(60 + 480 * u, y0 + 81, 40, ctx.fillStyle, 0.6);
     this.text(`${Math.ceil(Math.max(0, h.timeLeft))} s`, 64, y0 + 103, 15, hurry ? '#ff7088' : '#bfe9ff', 'left', 1, true);
     const note = h.perk ? 'AVANTAGE : ' + h.perk.name : h.objective;
-    this.text(note, 536, y0 + 103, 12, h.perk ? col : '#9fb3d6', 'right', 0.9);
+    this._fitText(note, 536, y0 + 103, 15, 380, h.perk ? col : '#c4d4f0', 'right');
+  }
+
+  // texte réduit si besoin pour tenir dans une largeur donnée (unités monde)
+  _fitText(str, x, y, size, maxW, color, align) {
+    const ctx = this.ctx;
+    ctx.font = `700 ${size}px ${this.font}`;
+    const w = ctx.measureText(str).width;
+    this.text(str, x, y, w > maxW ? Math.max(9, size * maxW / w) : size, color, align, 0.95);
   }
 
   _core(core, color) {
@@ -4689,6 +5239,7 @@ class Renderer {
 
   // ------------------------------------------------------------ primitives communes
   glow(x, y, size, color, a = 1) {
+    if (this.lampK) { a *= this.lampK(y); if (a < 0.01) return; }
     const ctx = this.ctx;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = a;
@@ -5905,6 +6456,7 @@ class Music {
   }
 
   _playStep(step, t) {
+    if (this.muted) return;          // une piste enregistrée joue à sa place
     const s = this.song, A = this.A;
     const I = Math.min(1, this.intensity + (this.flags.multiball && this.mode === 'table' ? 0.3 : 0));
     const T = this.tension;
@@ -6037,6 +6589,152 @@ class Music {
 }
 
 return { Music };
+})();
+
+// ===== src/audio/soundtrack.js =====
+__mod['src/audio/soundtrack.js'] = (function () {
+// Bande-son en fichiers (assets/music/*.mp3) : deux platines qui alternent pour les
+// fondus enchaînés. Seul le morceau utile est téléchargé (lecture en flux). La musique
+// procédurale reste le repli pour tout morceau absent ou illisible.
+// Servie en http(s), chaque platine passe par le graphe Web Audio (volume, filtre de pause,
+// atténuation sous les voix, iOS compris) ; en file://, le graphe rendrait du silence
+// (restriction d'origine) : on règle alors directement le volume de l'élément.
+
+const FILES = { title: 'title', table: 'table', multiball: 'multiball', hangar: 'hangar', reactor: 'reactor', defense: 'defense', duel: 'duel', gameover: 'gameover' };
+const FADE = 1.1;          // durée des fondus enchaînés (s)
+const LOOP_DIP = 1.4;      // creux de volume autour du point de bouclage (s)
+const TRACK_GAIN = 0.85;   // niveau global des pistes face aux effets
+// égalisation mesurée (RMS ramené à environ -17,5 dB)
+const NORM = { title: 1, table: 0.97, multiball: 0.9, hangar: 0.93, reactor: 0.88, defense: 1.05, duel: 1.15, gameover: 0.87 };
+
+class Soundtrack {
+  constructor(A) {
+    this.A = A;
+    const base = (typeof window !== 'undefined' && window.LN_ASSET_BASE) || '';
+    this.base = base + 'assets/music/';
+    this.graph = typeof location !== 'undefined' && /^https?:$/.test(location.protocol);
+    this.status = {};            // clé → 'ok' | 'error' (inconnu tant que non essayé)
+    this.pos = {};               // position mémorisée par morceau (reprise du plateau)
+    this.decks = [this._deck(), this._deck()];
+    this.active = null;          // platine qui joue le morceau courant
+    this.onPlaying = null;       // (clé) → la musique procédurale peut se taire
+    this.onFail = null;          // (clé) → revenir à la musique procédurale
+    this.hidden = false;
+    // application en arrière-plan : les platines s'arrêtent, puis reprennent au retour
+    document.addEventListener('visibilitychange', () => {
+      this.hidden = document.hidden;
+      for (const d of this.decks) {
+        if (!d.key) continue;
+        if (this.hidden) d.el.pause();
+        else if (d.want) this._playEl(d);
+      }
+    });
+  }
+
+  _deck() {
+    const el = new Audio();
+    el.preload = 'auto';
+    el.loop = true;
+    if (this.graph) el.crossOrigin = 'anonymous';
+    const d = { el, key: null, want: false, vol: 0, target: 0, gain: null };
+    if (this.graph) {
+      try {
+        const ctx = this.A.ctx;
+        const src = ctx.createMediaElementSource(el);
+        d.gain = ctx.createGain(); d.gain.gain.value = 0;
+        src.connect(d.gain); d.gain.connect(this.A.musicIn);
+      } catch (_) { this.graph = false; }
+    }
+    el.addEventListener('error', () => this._failed(d));
+    el.addEventListener('playing', () => { if (d.key && d.want) { this.status[d.key] = 'ok'; if (this.onPlaying) this.onPlaying(d.key); } });
+    return d;
+  }
+
+  usable(key) { return !!FILES[key] && this.status[key] !== 'error'; }
+
+  // Débloque les deux platines pendant le premier geste de l'utilisateur (iOS).
+  unlock() {
+    for (const d of this.decks) {
+      if (d.unlocked) continue;
+      d.unlocked = true;
+      const p = d.el.play();
+      if (p && p.catch) p.then(() => { if (!d.want) d.el.pause(); }).catch(() => {});
+    }
+  }
+
+  // Joue un morceau ; resume = reprendre là où il s'était arrêté.
+  play(key, opts = {}) {
+    if (!this.usable(key)) return false;
+    const cur = this.active;
+    if (cur && cur.key === key && cur.want) return true;
+    if (cur && cur.key) this.pos[cur.key] = cur.el.currentTime || 0;
+    const d = this.decks.find(x => x !== cur) || this.decks[0];
+    if (cur) this._fadeOut(cur);
+    const url = this.base + FILES[key] + '.mp3';
+    if (d.key !== key || !d.el.src) { d.el.src = url; d.key = key; }
+    const start = opts.resume ? (this.pos[key] || 0) : 0;
+    const seek = () => { try { d.el.currentTime = start; } catch (_) { /* pas encore prêt */ } };
+    if (d.el.readyState >= 1) seek(); else d.el.addEventListener('loadedmetadata', seek, { once: true });
+    d.want = true; d.target = 1;
+    this.active = d;
+    this._playEl(d);
+    return true;
+  }
+
+  // Nouveau geste de l'utilisateur : relance une platine dont la lecture avait été refusée.
+  retry() {
+    for (const d of this.decks) if (d.want && d.el.paused && !this.hidden) this._playEl(d);
+  }
+
+  stop() {
+    for (const d of this.decks) if (d.want) this._fadeOut(d);
+    if (this.active && this.active.key) this.pos[this.active.key] = this.active.el.currentTime || 0;
+    this.active = null;
+  }
+
+  _fadeOut(d) { d.want = false; d.target = 0; }
+
+  _playEl(d) {
+    if (this.hidden) return;
+    const p = d.el.play();
+    if (p && p.catch) p.catch(() => { /* lecture refusée : réessayée au prochain geste */ });
+  }
+
+  _failed(d) {
+    if (!d.key) return;
+    const key = d.key;
+    this.status[key] = 'error';
+    d.want = false; d.target = 0; d.vol = 0;
+    if (this.active === d) this.active = null;
+    if (this.onFail) this.onFail(key);
+  }
+
+  // Appelé régulièrement : fondus, creux de bouclage, volume en mode direct.
+  update(dt) {
+    const s = this.A.settings, paused = this.A.paused;
+    for (const d of this.decks) {
+      if (!d.key) continue;
+      const k = Math.min(1, dt / (FADE * 0.35));
+      d.vol += (d.target - d.vol) * k;
+      if (!d.want && d.vol < 0.01) { d.vol = 0; if (!d.el.paused) d.el.pause(); }
+      // creux de volume autour du point de bouclage (fin du morceau → début)
+      let dip = 1;
+      const T = d.el.duration, t = d.el.currentTime;
+      if (T > 10 && Number.isFinite(T)) {
+        if (t > T - LOOP_DIP) dip = Math.max(0.15, (T - t) / LOOP_DIP);
+        else if (t < LOOP_DIP * 0.5) dip = Math.max(0.15, t / (LOOP_DIP * 0.5));
+      }
+      const v = d.vol * dip * TRACK_GAIN * (NORM[d.key] || 1);
+      if (d.gain) d.gain.gain.setTargetAtTime(v, this.A.ctx.currentTime, 0.05);
+      else {
+        d.el.muted = !!s.muted;
+        d.el.volume = Math.max(0, Math.min(1, v * s.music * (paused ? 0.35 : 1)));
+      }
+    }
+  }
+}
+
+return { Soundtrack };
 })();
 
 // ===== src/audio/voice.js =====
@@ -6177,9 +6875,10 @@ class Ambience {
     // recyclage d'air
     const src = ctx.createBufferSource(); src.buffer = A.pinkBuf; src.loop = true;
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = 0.6;
-    const ag = ctx.createGain(); ag.gain.value = 0.25;
+    // souffle stable et discret (une modulation lente évoquait des vagues)
+    const ag = ctx.createGain(); ag.gain.value = 0.07;
     const lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.11;
-    const lg2 = ctx.createGain(); lg2.gain.value = 0.1;
+    const lg2 = ctx.createGain(); lg2.gain.value = 0.012;
     lfo2.connect(lg2); lg2.connect(ag.gain); lfo2.start(t);
     src.connect(bp); bp.connect(ag); ag.connect(bus); src.start(t);
     this.nextEvent = t + 3;
@@ -6205,7 +6904,7 @@ class Ambience {
     } else if (kind === 2) { // crépitement de circuit
       for (let i = 0; i < 8; i++) A.noise({ f: 3000 + Math.random() * 4000, q: 4, t: t + Math.random() * 0.5, dur: 0.012, gain: 0.08, dest: o });
     } else { // moteur lointain
-      A.noise({ pink: true, f: 120, f2: 260, q: 1.2, filter: 'lowpass', dur: 2.5, a: 0.8, gain: 0.25, dest: o });
+      A.noise({ pink: true, f: 120, f2: 260, q: 1.2, filter: 'lowpass', dur: 2.5, a: 0.8, gain: 0.1, dest: o });
     }
   }
 }
@@ -6217,6 +6916,7 @@ return { Ambience };
 __mod['src/audio/engine.js'] = (function () {
 const { SFX } = __mod['src/audio/sfx.js'];
 const { Music } = __mod['src/audio/music.js'];
+const { Soundtrack } = __mod['src/audio/soundtrack.js'];
 const { Voice } = __mod['src/audio/voice.js'];
 const { Ambience } = __mod['src/audio/ambience.js'];
 const { clamp } = __mod['src/util/math.js'];
@@ -6241,6 +6941,7 @@ class AudioEngine {
   unlock() {
     if (this.ctx) {
       if (this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume().catch(() => {});
+      if (this.soundtrack) this.soundtrack.retry();
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -6275,12 +6976,18 @@ class AudioEngine {
     this.pinkBuf = this._noise(4, 'pink');
     this.ready = true;
     this.applyVolumes();
-    const real = new Music(this);
-    this.music.attach(real);
-    this.music = real;
+    const proc = new Music(this);
+    this.soundtrack = new Soundtrack(this);
+    this.soundtrack.unlock();
+    const mix = new MusicMix(proc, this.soundtrack, this);
+    this.music.attach(mix);
+    this.music = mix;
     this.voice = new Voice(this);
     this.amb = new Ambience(this);
-    real.start();
+    proc.start();
+    // fondus de la bande-son (indépendants de la boucle de jeu, qui s'arrête en pause)
+    let last = performance.now();
+    setInterval(() => { const now = performance.now(); this.soundtrack.update(Math.min(0.25, (now - last) / 1000)); last = now; }, 50);
     this.amb.start();
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return;
@@ -6321,9 +7028,12 @@ class AudioEngine {
     this.buses.music.gain.setTargetAtTime(s.music * 0.55 * (p ? 0.35 : 1), t, 0.08);
     this.buses.sfx.gain.setTargetAtTime(s.sfx * 0.9 * (p ? 0 : 1), t, 0.05);
     this.buses.voice.gain.setTargetAtTime(s.voice * 0.9 * (p ? 0 : 1), t, 0.05);
-    this.buses.amb.gain.setTargetAtTime(s.sfx * 0.45 * (p ? 0.3 : 1), t, 0.2);
+    // l'ambiance de la station se tait quand une piste enregistrée joue (ambK = 0)
+    this.buses.amb.gain.setTargetAtTime(s.sfx * 0.45 * (p ? 0.3 : 1) * (this.ambK ?? 1), t, 0.6);
     this.musicIn.frequency.setTargetAtTime(p ? 700 : 18000, t, 0.1);
   }
+
+  setAmbience(k) { if (this.ambK !== k) { this.ambK = k; this.applyVolumes(); } }
 
   setPaused(p) {
     this.paused = p;
@@ -6466,6 +7176,41 @@ class AudioEngine {
   stopCharge() { if (this.ready) SFX.stopCharge(this); }
 
   pan(x) { return clamp((x / 600) * 2 - 1, -1, 1) * 0.65; }
+}
+
+// Aiguillage musical : la piste enregistrée du mode (assets/music) si elle existe,
+// sinon la musique procédurale. La multibille a sa propre piste sur le plateau.
+const TRACK_OF = { title: 'title', table: 'table', brick: 'hangar', reactor: 'reactor', defense: 'defense', duel: 'duel', gameover: 'gameover' };
+
+class MusicMix {
+  constructor(proc, st, A) {
+    this.proc = proc; this.st = st; this.A = A;
+    this.mode = 'title'; this.flags = {};
+    st.onPlaying = (key) => { if (key === this.key) { this.proc.muted = true; A.setAmbience(0); } };
+    st.onFail = () => this._route();
+  }
+
+  _route() {
+    let key = TRACK_OF[this.mode] || null;
+    if (key === 'table' && this.flags.multiball && this.st.usable('multiball')) key = 'multiball';
+    if (key && this.st.usable(key)) {
+      if (key !== this.key) this.st.play(key, { resume: key === 'table' });
+      this.key = key;
+    } else {
+      this.key = null;
+      this.st.stop();
+      this.proc.muted = false;
+      this.A.setAmbience(1);
+    }
+  }
+
+  setMode(m, immediate) { this.mode = m; this.proc.setMode(m, immediate); this._route(); }
+  setFlag(k, v) { this.flags[k] = v; this.proc.setFlag(k, v); if (k === 'multiball') this._route(); }
+  setIntensity(v) { this.proc.setIntensity(v); }
+  setTension(v) { this.proc.setTension(v); }
+  setLevel(l) { this.proc.setLevel(l); }
+  bump(x) { this.proc.bump(x); }
+  currentChord() { return this.proc.currentChord(); }
 }
 
 // Permet d'appeler setMode/setIntensity avant le déverrouillage audio.
@@ -6688,7 +7433,7 @@ const ACCENTED = {
 const ALIAS = {
   '’': '\'', '‘': '\'', '´': '\'', '`': '\'', '“': '"', '”': '"', '„': '"', '«': '"', '»': '"',
   '–': '-', '—': '-', '‐': '-', '‑': '-', '−': '-', '_': '-', '•': '·', '⋅': '·', '∙': '·',
-  '[': '(', ']': ')', '{': '(', '}': ')', '…': '.', ' ': ' ', ' ': ' ', ' ': ' ', '\t': ' ',
+  '[': '(', ']': ')', '{': '(', '}': ')', '…': '.', '←': '<', '→': '>', '↑': '^', '↓': 'v', ' ': ' ', ' ': ' ', ' ': ' ', '\t': ' ',
 };
 
 function expand(rows) {
@@ -7539,6 +8284,11 @@ class DMD {
     if (!def) { def = EV.banner; data = { title: data.title || String(kind).toUpperCase(), sub: data.sub, color: data.color }; kind = 'banner'; }
     const e = { kind, def, data, t: 0, pt: -1, dur: def.dur, pri: def.pri, wait: 0, col: data.color || def.col || PALETTE[0], seed: (Math.random() * 1e9) | 0, memo: {} };
     if (kind === '_null') e.dur = Math.min(4.6, Math.max(2.2, 1.6 + String(data.text || '').length * 0.045));
+    // sous-titre long : laisser le temps de le faire défiler en entier
+    if (data.sub) {
+      const over = measure(String(data.sub).toUpperCase(), F_S) - W;
+      if (over > 0) e.dur = Math.min(7, Math.max(e.dur, 2.4 + over / 34));
+    }
     if (kind === 'gameOver') this.lastScore = Math.max(0, Math.floor(data.score ?? this.score));
     const cur = this.ev;
     if (cur && cur.kind === kind && def.merge) { cur.data = data; cur.t = Math.min(cur.t, 0.45); cur.bumpT = cur.t; return; }
@@ -7866,12 +8616,588 @@ function same(a, b) {
 return { DMD };
 })();
 
+// ===== src/ui/gameover.js =====
+__mod['src/ui/gameover.js'] = (function () {
+const { fmt } = __mod['src/util/math.js'];
+const { load } = __mod['src/util/storage.js'];
+
+// Fin de session : cinématique (signal perdu, extinction du plateau, NULL prend la main),
+// rapport d'opération (score, statistiques, classement), saisie d'initiales façon borne
+// d'arcade, puis tableau des scores animé en boucle pendant la musique de fin.
+// Piloté par UI.update (temps réel) : aucune minuterie du navigateur, tout s'arrête avec stop().
+
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+// repères de la cinématique (s depuis la fin de partie)
+const T = { shut: 0.5, lumenOff: 2.05, nullOn: 4.15, title: 4.9, score: 6.5, count: 2.8, stats: 10, step: 0.42 };
+const SLICE_COLS = ['#29e3ff', '#ff3df2', '#ff4060', '#ffffff'];
+const FW_COLS = ['#ffd84a', '#ff3df2', '#29e3ff', '#5dff8f', '#ffffff'];
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ord = (n) => n === 1 ? '1<sup>er</sup>' : `${n}<sup>e</sup>`;
+const duration = (s) => { s = Math.floor(s || 0); return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`; };
+
+// Lignes du tableau des scores (fin de session et écran d'accueil).
+// o.n : nombre de lignes (cases vides en pointillés), o.me : ligne à mettre en avant, o.you : score hors classement.
+function scoreRows(list, o = {}) {
+  const n = o.n ?? 10, me = o.me ?? -1;
+  const row = (cls, i, rk, nm, lv, sc) => `<li class="lb-row${cls}" style="--i:${i}"><b class="rk">${rk}</b><span class="nm">${nm}</span><i class="ld"></i><span class="lv">${lv}</span><span class="sc">${sc}</span></li>`;
+  let h = '';
+  for (let i = 0; i < n; i++) {
+    const e = list[i];
+    const cls = (e && i < 3 ? ' r' + (i + 1) : '') + (i === me ? ' me' : '') + (e ? '' : ' empty');
+    h += row(cls, i, String(i + 1).padStart(2, '0'), e ? esc(e.name) : '···', e && e.level ? 'NIV ' + e.level : '', e ? fmt(e.score) : '—');
+  }
+  if (o.you) h += row(' you', n, '—', 'VOUS', o.you.level ? 'NIV ' + o.you.level : '', fmt(o.you.score));
+  return h;
+}
+
+class GameOverSeq {
+  constructor(ui) {
+    this.ui = ui;
+    const root = this.root = document.getElementById('screen-over');
+    const q = (s) => root.querySelector(s);
+    this.e = {
+      stage: q('.go-stage'), veil: q('.go-veil'), flash: q('.go-flash'), signal: q('.go-signal'),
+      status: q('.go-status'), bar: q('.go-bar i'), pct: q('.go-pw b'), msg: q('.go-msg'),
+      head: q('.go-head'), title: q('.go-title'), report: q('.go-report'), score: q('.go-score'), stats: q('.go-stats'), rank: q('.go-rank'),
+      side: q('.go-side'), entry: q('.go-entry'), slots: [...root.querySelectorAll('.go-slot')], hint: q('.go-hint'),
+      board: q('.go-board'), lb: q('.go-board .lb'), tabs: [...root.querySelectorAll('.go-tabs button')],
+      menu: q('.go-menu'), skip: q('.go-skip'), sparks: q('.go-sparks'),
+    };
+    this.active = false; this.phase = 'off'; this.d = null; this.game = null;
+    this.t = 0; this.guardAt = -9; this.timers = []; this.fws = []; this.rep = null; this.wide = null;
+    this.count = null; this.statsT = null; this.boardT = null; this.ent = null; this.rows = [];
+    this._bind();
+  }
+
+  get settings() { return this.ui.settings; }
+  get touch() { return this.ui.touch; }
+
+  _bind() {
+    const e = this.e;
+    // toucher ou clic pendant la cinématique : passer au résultat
+    this.root.addEventListener('pointerdown', (ev) => {
+      if (!this.active || this.phase !== 'cine') return;
+      ev.preventDefault();
+      this.skip();
+    });
+    // cases : toucher pour corriger une lettre (jamais de focus : Entrée valide toujours la saisie)
+    e.slots.forEach((s, i) => {
+      s.addEventListener('pointerdown', (ev) => ev.preventDefault());
+      s.addEventListener('click', (ev) => { ev.preventDefault(); s.blur(); if (ev.detail !== 0 && this._ok()) this._select(i); });
+    });
+    for (const b of this.root.querySelectorAll('.go-key')) {
+      const k = b.dataset.key;
+      const act = () => {
+        if (!this._ok()) return;
+        if (k === 'ok') { this._validate(); return; }
+        const d = k === 'next' ? 1 : -1;
+        this._cycle(d);
+        this.rep = { d, t: 0.42 };      // maintien : défilement automatique
+      };
+      // pas de focus au toucher : Espace et Entrée restent des commandes de jeu
+      b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); act(); });
+      b.addEventListener('click', (ev) => { ev.preventDefault(); b.blur(); if (ev.detail === 0) { act(); this.rep = null; } });
+      for (const n of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(n, () => { this.rep = null; });
+    }
+    e.tabs.forEach((b) => b.addEventListener('click', (ev) => { ev.preventDefault(); b.blur(); this._view(b.dataset.view); this.altT = 16; }));
+    window.addEventListener('keydown', (ev) => this._key(ev));
+  }
+
+  // ------------------------------------------------------------ cycle de vie
+  start(d) {
+    this.stop();
+    const e = this.e;
+    this.d = d; this.active = true; this.phase = 'cine';
+    this.t = 0; this.cue = 0; this.fast = false; this.guardAt = -9;
+    this.saved = false; this.me = -1; this.ent = null; this.view = 'report'; this.altT = 0; this.pct = -1;
+    this.rec = d.rank === 0 && d.score > 0;
+    this.ranked = d.rank >= 0 && d.score > 0;
+    // titre en tranches (assemblage glitché)
+    const txt = 'FIN DE SESSION', N = 7;
+    let h = `<span class="go-sz">${txt}</span>`;
+    for (let i = 0; i < N; i++) {
+      const dx = Math.round((Math.random() < 0.5 ? -1 : 1) * (50 + Math.random() * 190));
+      // bandes jointives ; les bords extérieurs débordent pour ne pas rogner le halo néon
+      const t0 = i ? (i * 100 / N - 0.6).toFixed(2) + '%' : '-60px', b0 = i < N - 1 ? (100 - (i + 1) * 100 / N - 0.6).toFixed(2) + '%' : '-60px';
+      h += `<span class="sl" aria-hidden="true" style="--i:${i};--t:${t0};--b:${b0};--dx:${dx}px;--sc:${SLICE_COLS[i % 4]}">${txt}</span>`;
+    }
+    e.title.innerHTML = h;
+    // rapport : score (largeur fixe par chiffre) et statistiques
+    const s = fmt(d.score);
+    e.score.style.setProperty('--em', ([...s].reduce((a, c) => a + (c === ' ' ? 0.32 : 0.8), 0) + 0.3).toFixed(2));
+    this.scoreStr = null;
+    this._setScore(0);
+    const st = d.stats || {}, sec = d.sectors || {};
+    const done = ['hangar', 'reactor', 'defense'].filter(k => sec[k] && sec[k].done).length;
+    const n = (v) => fmt(v);
+    this.rows = [
+      ['Niveau de sécurité', d.level || 1, n],
+      ['Secteurs réactivés', done, (v) => `${v} / 3`],
+      ['Minijeux gagnés', st.minigamesWon || 0, (v) => `${v} / ${st.minigamesPlayed || 0}`],
+      ['Victoires sur NULL', st.bossWins || 0, n],
+      ['Jackpots', st.jackpots || 0, (v) => n(v) + (st.superJackpots ? ` + ${st.superJackpots} super` : '')],
+      ['Multibilles', st.multiballs || 0, n],
+      ['Meilleur combo', st.bestCombo || 0, (v) => v ? '×' + v : '—'],
+      ['Skill shots', st.skillShots || 0, n],
+      ['Missions réussies', st.missions || 0, n],
+      ['Durée de session', st.time || 0, (v) => duration(v)],
+    ].map(([k, v, f]) => ({ k, v, f, on: false, done: false, t0: 0 }));
+    e.stats.innerHTML = this.rows.map((r) => `<li style="--n:${r.k.length}"><span class="k">${r.k}</span><i class="ld"></i><span class="v">${r.f(0)}</span></li>`).join('');
+    this.rowEls = [...e.stats.children];
+    this.statsT = null; this.boardT = null; this.count = null;
+    e.skip.textContent = this.touch ? 'Toucher pour passer ▸▸' : 'Espace / Entrée : passer ▸▸';
+    const rankAt = T.stats + this.rows.length * T.step + 0.5;
+    this.cues = [
+      [0, '_impact'], [T.shut, '_shutdown'], [T.lumenOff, '_lumenOff'], [T.nullOn, '_null'], [T.title, '_title'],
+      [T.score, '_score'], [T.stats, '_stats'], [rankAt, '_rank'], [rankAt + (this.rec ? 2.4 : 1.6), '_result'],
+    ];
+    this._layout();
+  }
+
+  // Remet tout à zéro (nouvelle partie, retour au menu) : rien ne doit continuer à tourner.
+  stop() {
+    const r = this.game && this.game.renderer;
+    if (r && r.powerOn) r.powerOn();
+    if (!this.active && !this.d) return;
+    const e = this.e;
+    this.active = false; this.phase = 'off'; this.d = null;
+    this.timers.length = 0; this.rep = null; this.count = null; this.statsT = null; this.boardT = null; this.ent = null;
+    for (const f of this.fws) f.el.remove();
+    this.fws.length = 0;
+    e.sparks.textContent = '';
+    for (const el of [...this.root.querySelectorAll('.on')]) el.classList.remove('on');
+    e.stage.className = 'go-stage'; delete e.stage.dataset.view; this.wide = null;
+    e.side.classList.remove('entry', 'board'); e.entry.classList.remove('done', 'ready');
+    e.veil.classList.remove('lift');
+    e.score.className = 'go-score'; e.score.textContent = ''; e.stats.textContent = ''; e.lb.textContent = '';
+    e.rank.className = 'go-rank'; e.rank.textContent = '';
+    e.msg.className = 'go-msg'; e.msg.textContent = '';
+  }
+
+  update(game, dt) {
+    this.game = game;
+    if (!this.active) return;
+    this.t += dt;
+    this._layout();
+    while (this.cue < this.cues.length && this.t >= this.cues[this.cue][0]) this[this.cues[this.cue++][1]]();
+    for (let i = 0; i < this.timers.length;) {
+      if (this.t >= this.timers[i].t) this.timers.splice(i, 1)[0].fn(); else i++;
+    }
+    for (let i = this.fws.length - 1; i >= 0; i--) if (this.t >= this.fws[i].end) { this.fws[i].el.remove(); this.fws.splice(i, 1); }
+    this._tickStatus();
+    this._tickCount();
+    this._tickStats();
+    this._tickBoard();
+    if (this.rep && this.phase === 'entry') { this.rep.t -= dt; if (this.rep.t <= 0) { this.rep.t = 0.085; this._cycle(this.rep.d); } }
+    if (this.phase === 'idle') this._tickIdle(dt);
+  }
+
+  later(t, fn) { this.timers.push({ t: this.t + t, fn }); }
+
+  // ------------------------------------------------------------ commandes
+  // Entrée (confirm), Espace / ↓ (launchKey), Échap (pause) : routées par main.js en fin de partie.
+  command(cmd, focusedBtn) {
+    if (!this.active) return false;
+    const go = cmd === 'confirm' || cmd === 'launchKey';
+    if (this.phase === 'cine') { this.skip(); return true; }
+    if (this.phase === 'entry') { if (go && this._ok()) this._validate(); return true; }
+    if (this.phase === 'idle' && go && !focusedBtn && this._ok()) {
+      if (this.ui.h.sfx) this.ui.h.sfx('uiClick');
+      this.ui.action('play');
+    }
+    return true;
+  }
+
+  // Clavier pendant la saisie : ← → changent la lettre, ⌫ revient, lettres et chiffres s'inscrivent directement.
+  _key(ev) {
+    if (!this.active || this.phase !== 'entry' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const k = ev.key;
+    if (k === 'ArrowLeft') this._cycle(-1);
+    else if (k === 'ArrowRight' || k === 'ArrowUp') this._cycle(1);
+    else if (k === 'Backspace' || k === 'Delete') { if (!ev.repeat) this._back(); }
+    else if (k.length === 1 && /[a-z0-9]/i.test(k)) { if (!ev.repeat) this._type(k.toUpperCase()); }
+    else return;
+    ev.preventDefault();
+  }
+
+  // délai de garde après un saut ou un changement d'étape (un toucher ne déclenche pas deux actions)
+  _ok() { return this.t - this.guardAt > 0.45; }
+  canLeave() { return !this.active || (this.phase !== 'cine' && this._ok()); }
+
+  // Quitter (Rejouer / Menu) pendant la saisie : le score est enregistré avec les initiales en cours.
+  leave() {
+    if (this.active && this.ent && !this.saved) this._save(true);
+  }
+
+  // Passer la cinématique : tout s'affiche dans son état final, puis le résultat.
+  skip() {
+    if (!this.active || this.phase !== 'cine') return;
+    const e = this.e, r = this.game && this.game.renderer;
+    this.fast = true;
+    e.stage.classList.add('go-fast');
+    while (this.cue < this.cues.length) this[this.cues[this.cue++][1]]();
+    if (r && r.shutdownEnd) r.shutdownEnd();
+    if (this.count && !this.count.done) this._countEnd(true);
+    this.rows.forEach((x, i) => { if (!x.done) this._row(i, true); });
+    for (const el of [e.signal, e.flash, e.status]) el.classList.remove('on');
+    this.fast = false;
+    this.guardAt = this.t;
+  }
+
+  // ------------------------------------------------------------ cinématique
+  _impact() {
+    if (this.fast) return;
+    const g = this.game, r = g.renderer;
+    if (r.glitch) r.glitch(1, this.settings.reducedFx ? 0.5 : 1.4);
+    if (r.pulse) r.pulse('#ff2050', 1.5);
+    g.fx.flash('#ff2040', 0.9);
+    g.fx.shake(14);
+    this._place();
+    this._on(this.e.flash); this._on(this.e.signal);
+  }
+
+  _shutdown() {
+    const r = this.game.renderer;
+    if (r.shutdown) r.shutdown({ pre: 0.45, dur: 2.8, redAt: T.nullOn - T.shut });
+    if (this.fast) return;
+    this.game.sfx('warpOut');
+    this._on(this.e.status);
+  }
+
+  _lumenOff() {
+    if (this.fast) return;
+    this._msg('◉ LUMEN · hors ligne', 'lumen');
+    this.game.sfx('drainMulti');
+  }
+
+  _null() {
+    if (this.fast) return;
+    const g = this.game, r = g.renderer;
+    this._msg('▲ NULL · contrôle total de la station', 'null');
+    g.sfx('bossWarn');
+    if (r.glitch) r.glitch(0.7, 0.5);
+    if (r.pulse) r.pulse('#ff2050', 1);
+  }
+
+  _title() {
+    const e = this.e;
+    for (const el of [e.signal, e.flash, e.status]) el.classList.remove('on');
+    this._on(e.veil); this._on(e.head);
+    if (!this.fast) this.game.sfx('shutter');
+  }
+
+  _score() {
+    this._on(this.e.report);
+    this.count = { t0: this.t, dur: this.d.score > 0 ? T.count : 0.4, tick: 0, done: false };
+    if (this.fast) this._countEnd(true);
+    else if (this.d.score > 0) this.game.sfx('warpIn');
+  }
+
+  _stats() {
+    this.statsT = this.t;
+    if (this.fast) this.rows.forEach((x, i) => this._row(i, true));
+  }
+
+  _rank() {
+    const d = this.d, e = this.e, g = this.game, list = this.ui.h.scores().list;
+    const best = d.best ?? (list[0] ? list[0].score : 0);
+    let cls = 'out', m1 = 'HORS CLASSEMENT', m2 = '';
+    if (this.rec) {
+      cls = 'rec'; m1 = 'NOUVEAU RECORD !';
+      m2 = best > 0 ? `Ancien record ${fmt(best)} · +${fmt(d.score - best)}` : 'Premier record de la station';
+    } else if (this.ranked) {
+      cls = 'top'; m1 = `CLASSEMENT : ${ord(d.rank + 1)}`;
+      m2 = best > 0 ? `Record à battre : ${fmt(best)}` : '';
+    } else {
+      m2 = d.score <= 0 ? 'Aucun point marqué' : list.length >= 10 ? `Il manquait ${fmt(list[9].score - d.score + 1)} points pour le top 10` : '';
+    }
+    e.rank.className = 'go-rank ' + cls;
+    e.rank.innerHTML = `<div class="rm1">${m1}</div>${m2 ? `<div class="rm2">${m2}</div>` : ''}`;
+    this._on(e.rank);
+    if (this.rec) {
+      e.score.classList.add('gold');
+      g.sfx('extraBall');
+      this.later(0.55, () => g.sfx('jackpot'));
+      if (g.say) g.say('highScore');
+      this._celebrate(5);
+    } else if (this.ranked) {
+      g.sfx('skillShot');
+      this._celebrate(2, '#29e3ff');
+    } else g.sfx('missionFail');
+  }
+
+  _result() {
+    this.phase = 'result';
+    this.guardAt = this.t;
+    this._on(this.e.menu);
+    if (this.ranked && !this.saved) this._entryStart(); else this._boardStart();
+  }
+
+  // ------------------------------------------------------------ animations continues
+  _tickStatus() {
+    if (!this.e.status.classList.contains('on')) return;
+    const S = this.game.renderer.shut;
+    const p = S ? Math.round(100 * (1 - (S.u || 0))) : 100;
+    if (p === this.pct) return;
+    this.pct = p;
+    this.e.pct.textContent = p + ' %';
+    this.e.bar.style.width = p + '%';
+    this.e.status.style.setProperty('--pc', p > 60 ? '#29e3ff' : p > 25 ? '#ffb52e' : '#ff2a4a');
+  }
+
+  _setScore(v) {
+    const s = fmt(v);
+    if (s === this.scoreStr) return;
+    this.scoreStr = s;
+    this.e.score.innerHTML = [...s].map(c => c === ' ' ? '<i class="s"></i>' : `<i class="d">${c}</i>`).join('');
+  }
+
+  _tickCount() {
+    const c = this.count;
+    if (!c || c.done) return;
+    const p = Math.min(1, (this.t - c.t0) / c.dur);
+    this._setScore(Math.round(this.d.score * (1 - Math.pow(1 - p, 3))));
+    if (this.t >= c.tick && p < 1 && this.d.score > 0) { c.tick = this.t + 0.075; this.game.sfx('missionTick', p); }
+    if (p >= 1) this._countEnd(false);
+  }
+
+  _countEnd(quiet) {
+    this.count.done = true;
+    this._setScore(this.d.score);
+    if (quiet) return;
+    this._replay(this.e.score, 'punch');
+    this.game.sfx('reward');
+    const r = this.game.renderer;
+    if (r.pulse) r.pulse('#29e3ff', 0.9);
+  }
+
+  _row(i, fast) {
+    const x = this.rows[i], el = this.rowEls[i];
+    x.on = true; x.t0 = this.t;
+    el.classList.add('on');
+    if (fast) { x.done = true; el.querySelector('.v').textContent = x.f(x.v); }
+    else this.game.sfx('uiMove');
+  }
+
+  _tickStats() {
+    if (this.statsT === null) return;
+    this.rows.forEach((x, i) => {
+      if (!x.on && this.t >= this.statsT + i * T.step) this._row(i, false);
+      if (x.on && !x.done) {
+        const p = Math.max(0, Math.min(1, (this.t - x.t0 - 0.12) / 0.35));
+        this.rowEls[i].querySelector('.v').textContent = x.f(p >= 1 ? x.v : Math.round(x.v * p));
+        if (p >= 1) x.done = true;
+      }
+    });
+  }
+
+  // une note par ligne du tableau qui arrive
+  _tickBoard() {
+    if (this.boardT === null || this.boardTick >= this.boardRows) return;
+    const n = Math.floor((this.t - this.boardT) / 0.085);
+    if (n > this.boardTick && n >= 0) { this.boardTick = n; this.game.sfx('uiMove'); }
+  }
+
+  _tickIdle(dt) {
+    // petit écran : rapport et classement en alternance ; grand écran : le tableau se recompose de temps en temps
+    this.altT -= dt;
+    if (this.altT <= 0) {
+      if (this.wide) { this.altT = 24; this._replay(this.e.lb, 'on'); }
+      else { this.altT = 10; this._view(this.view === 'board' ? 'report' : 'board'); }
+    }
+    // record : feux d'artifice de temps en temps
+    if (this.fwN > 0) { this.fwT -= dt; if (this.fwT <= 0) { this.fwT = 5 + Math.random() * 3; this.fwN--; this._celebrate(2, null, true); } }
+  }
+
+  // ------------------------------------------------------------ initiales
+  _entryStart() {
+    const e = this.e;
+    this.phase = 'entry';
+    const last = String(load('lastName', '') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+    this.ent = { l: (last + 'AAA').slice(0, 3).split(''), cur: 0 };
+    e.side.classList.add('entry'); e.side.classList.remove('board');
+    this._on(e.side);
+    this._view('entry');
+    e.hint.innerHTML = this.touch
+      ? '◀ ▶ changent la lettre · OK valide · touchez une case pour la corriger'
+      : '<kbd>←</kbd> <kbd>→</kbd> lettre · <kbd>Espace</kbd>/<kbd>Entrée</kbd> valider · <kbd>⌫</kbd> retour · ou tapez vos initiales';
+    e.skip.textContent = '';
+    this._drawEntry();
+  }
+
+  _drawEntry() {
+    const E = this.ent;
+    this.e.slots.forEach((s, i) => {
+      s.textContent = E.l[i];
+      s.classList.toggle('cur', i === E.cur);
+      s.classList.toggle('set', i < E.cur);
+    });
+    this.e.entry.classList.toggle('ready', E.cur >= 3);
+  }
+
+  _cycle(d) {
+    const E = this.ent;
+    if (!E || this.phase !== 'entry') return;
+    if (E.cur > 2) E.cur = 2;
+    const i = CHARS.indexOf(E.l[E.cur]);
+    E.l[E.cur] = CHARS[(Math.max(0, i) + d + CHARS.length) % CHARS.length];
+    this.game.sfx('uiMove');
+    this._drawEntry();
+    this._replay(this.e.slots[E.cur], d > 0 ? 'up' : 'dn');
+  }
+
+  _validate() {
+    const E = this.ent;
+    if (!E || this.phase !== 'entry') return;
+    if (E.cur >= 2) { this._save(false); return; }
+    E.cur++;
+    this.game.sfx('uiClick');
+    this._drawEntry();
+  }
+
+  _back() {
+    const E = this.ent;
+    if (!E || E.cur <= 0) return;
+    E.cur--;
+    this.game.sfx('uiMove');
+    this._drawEntry();
+  }
+
+  _type(ch) {
+    const E = this.ent;
+    if (!E || E.cur > 2) return;
+    E.l[E.cur] = ch;
+    this._replay(this.e.slots[E.cur], 'up');
+    E.cur++;
+    this.game.sfx('uiClick');
+    this._drawEntry();
+  }
+
+  _select(i) {
+    const E = this.ent;
+    if (!E || this.phase !== 'entry') return;
+    E.cur = i;
+    this.game.sfx('uiMove');
+    this._drawEntry();
+  }
+
+  _save(quiet) {
+    const name = this.ent.l.join('');
+    this.ui.h.saveScore(name);
+    this.saved = true;
+    const list = this.ui.h.scores().list, sc = Math.floor(this.d.score);
+    this.me = list.findIndex((x, i) => i >= this.d.rank && x.name === name && x.score === sc);
+    if (this.me < 0) this.me = list.findIndex((x) => x.name === name && x.score === sc);
+    if (quiet) return;
+    this.phase = 'saving';
+    this.e.entry.classList.add('done');
+    this.game.sfx('missionComplete');
+    this.later(0.8, () => this._boardStart());
+  }
+
+  // ------------------------------------------------------------ tableau des scores
+  _boardStart() {
+    const e = this.e, list = this.ui.h.scores().list;
+    this.phase = 'idle';
+    this.guardAt = this.t;
+    e.entry.classList.remove('done');
+    e.side.classList.remove('entry'); e.side.classList.add('board');
+    this._on(e.side);
+    e.lb.innerHTML = scoreRows(list, { n: 10, me: this.me, you: this.ranked ? null : { score: this.d.score, level: this.d.level } });
+    this.boardRows = e.lb.children.length;
+    this._replay(e.lb, 'on');
+    this._on(e.board);
+    this.boardT = this.t + 0.3; this.boardTick = 0;
+    this._view('board');
+    this.altT = 12;
+    e.stage.classList.add('idle');
+    e.skip.textContent = this.touch ? '' : 'Entrée / Espace : rejouer';
+    this.fwN = this.rec ? 6 : 0; this.fwT = 5;
+    // afficheur : boucle d'attente avec les meilleurs scores
+    this.ui.dmd.setHiscores(list);
+    this.ui.dmd.setMode('attract');
+  }
+
+  _view(v) {
+    this.view = v;
+    this.e.stage.dataset.view = v;
+    for (const b of this.e.tabs) b.classList.toggle('cur', b.dataset.view === v);
+  }
+
+  // ------------------------------------------------------------ effets
+  // Gerbes : dans le plateau (coordonnées monde, via game.fx) et à l'écran (particules DOM).
+  _celebrate(n, col = null, quiet = false) {
+    const g = this.game, r = g.renderer, rm = this.settings.reducedMotion;
+    const cols = col ? [col, '#ffffff'] : FW_COLS;
+    if (r.pulse) r.pulse(cols[0], quiet ? 0.6 : 1.2);
+    if (this.rec && !quiet) { this.e.veil.classList.add('lift'); this.later(2.8, () => this.e.veil.classList.remove('lift')); }
+    if (rm) return;
+    for (let i = 0; i < n; i++) {
+      this.later(i * 0.42, () => {
+        const c = cols[i % cols.length];
+        const x = 110 + Math.random() * 380, y = -60 + Math.random() * 400;
+        g.fx.burst(x, y, c, 30, 460);
+        g.fx.ring(x, y, c, 150, 0.7);
+        this._firework(i, c);
+      });
+    }
+  }
+
+  _firework(i, color) {
+    const W = window.innerWidth, H = window.innerHeight;
+    let x, y;
+    const R = this.e.rank.getBoundingClientRect();
+    if (i % 2 === 0 && R.width > 0) { x = R.left + R.width * (0.15 + Math.random() * 0.7); y = R.top - 10 - Math.random() * Math.min(140, H * 0.2); }
+    else { x = W * (0.12 + Math.random() * 0.76); y = H * (0.1 + Math.random() * 0.4); }
+    const k = this.settings.reducedFx ? 0.35 : 1, n = Math.round(34 * k), sz = Math.min(W, H) * (0.2 + Math.random() * 0.1);
+    let h = '<b class="core"></b>';
+    for (let j = 0; j < n; j++) {
+      const a = (j / n) * Math.PI * 2 + Math.random() * 0.3, d = sz * (0.55 + Math.random() * 0.45);
+      h += `<i style="--x:${(Math.cos(a) * d).toFixed(1)}px;--y:${(Math.sin(a) * d + sz * 0.35).toFixed(1)}px;--d:${(0.9 + Math.random() * 0.6).toFixed(2)}s"></i>`;
+    }
+    const el = document.createElement('div');
+    el.className = 'fw';
+    el.style.cssText = `left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--c:${color}`;
+    el.innerHTML = h;
+    this.e.sparks.appendChild(el);
+    this.fws.push({ el, end: this.t + 1.8 });
+  }
+
+  _msg(text, cls) { this.e.msg.textContent = text; this.e.msg.className = 'go-msg ' + cls; }
+  _on(el) { el.classList.add('on'); }
+  // relance une animation CSS (classe retirée puis remise)
+  _replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+  // place « signal perdu » et la jauge d'alimentation sur le plateau
+  _place() {
+    const R = this.ui.screenRect, e = this.e;
+    if (!R) return;
+    e.signal.style.top = (R.y + R.h * 0.4).toFixed(0) + 'px';
+    e.status.style.left = (R.x + R.w / 2).toFixed(0) + 'px';
+    e.status.style.top = Math.min(window.innerHeight - 90, R.y + R.h * 0.86).toFixed(0) + 'px';
+  }
+
+  // deux colonnes (rapport | initiales / classement) si l'écran est assez large
+  _layout() {
+    const W = window.innerWidth, H = window.innerHeight;
+    const wide = W >= 600 && W >= H * 1.25;
+    if (wide === this.wide) return;
+    this.wide = wide;
+    this.e.stage.classList.toggle('go-wide', wide);
+  }
+}
+
+return { scoreRows, GameOverSeq };
+})();
+
 // ===== src/ui/hud.js =====
 __mod['src/ui/hud.js'] = (function () {
 const { SECTORS, TABLE_W, TABLE_H } = __mod['src/config.js'];
 const { fmt } = __mod['src/util/math.js'];
-const { saveSettings, load, save } = __mod['src/util/storage.js'];
+const { saveSettings, save } = __mod['src/util/storage.js'];
 const { DMD } = __mod['src/ui/dmd.js'];
+const { GameOverSeq, scoreRows } = __mod['src/ui/gameover.js'];
 
 const $ = (s) => document.querySelector(s);
 const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', defense: '⛨', core: '☠' };
@@ -7900,11 +9226,13 @@ class UI {
     this.slowT = 0;
     this.touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
     this.el.app.classList.toggle('touch', this.touch);
+    this.el.app.classList.toggle('rm', !!settings.reducedMotion);
     // afficheur à points façon vrai flipper (score, événements, messages de LUMEN)
     this.dmd = new DMD(this.el.dmd, settings);
     this.el.hud.classList.add('dmd-on');
     this.view = { x: 0, y: 0, w: TABLE_W, h: TABLE_H, scale: 1 };
     this.bounds = { x0: 0, y0: 0, w: TABLE_W, h: TABLE_H };
+    this.over = new GameOverSeq(this);   // fin de session : cinématique et tableau des scores
     this._bind();
     this._safeProbe();
   }
@@ -7937,19 +9265,15 @@ class UI {
       inp.addEventListener('input', () => {
         this.settings[k] = inp.type === 'checkbox' ? inp.checked : parseFloat(inp.value);
         saveSettings(this.settings);
+        if (k === 'reducedMotion') this.el.app.classList.toggle('rm', !!this.settings.reducedMotion);
         this.h.settingsChanged(k);
       });
-    });
-    $('#name-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = ($('#name-input').value || 'OPR').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3) || 'OPR';
-      this.h.saveScore(name);
-      $('#name-form').classList.add('hidden');
-      $('#name-input').blur();
     });
   }
 
   action(a) {
+    // fin de session : pas de départ involontaire, initiales en cours enregistrées
+    if ((a === 'play' || a === 'title') && this.over.active) { if (!this.over.canLeave()) return; this.over.leave(); }
     switch (a) {
       case 'play': this.h.play(); break;
       case 'help': this.open('help'); break;
@@ -7970,7 +9294,8 @@ class UI {
     this.screenStack.push(name);
     this.el.screens[name].classList.remove('hidden');
     const first = this.el.screens[name].querySelector('.btn.primary, .btn');
-    if (first && !this.touch) setTimeout(() => first.focus(), 30);
+    // fin de session : rien n'a le focus (Entrée et Espace pilotent la séquence)
+    if (first && !this.touch && name !== 'over') setTimeout(() => first.focus(), 30);
     this.h.menuOpen && this.h.menuOpen(true);
   }
   back() {
@@ -7984,6 +9309,7 @@ class UI {
   topScreen() { return this.screenStack[this.screenStack.length - 1] || null; }
 
   showTitle() {
+    this.over.stop();
     this.hideScreens(); this.screenStack = [];
     this.el.hud.classList.add('hidden');
     this.el.launch.classList.add('hidden');
@@ -7994,6 +9320,7 @@ class UI {
   }
 
   onGameStart() {
+    this.over.stop();
     this.dmd.setMode('play');
     this.hideScreens(); this.screenStack = [];
     this.h.menuOpen && this.h.menuOpen(false);
@@ -8013,24 +9340,23 @@ class UI {
     else { this.hideScreens(); this.screenStack = []; this.h.menuOpen && this.h.menuOpen(false); }
   }
 
+  // Fin de partie : la séquence (src/ui/gameover.js) enchaîne cinématique, rapport,
+  // initiales et tableau des scores ; elle est animée par update().
   showGameOver(d) {
     this.hideScreens(); this.screenStack = [];
     this.el.launch.classList.add('hidden');
-    $('#final-score').textContent = fmt(d.score);
-    $('#final-rank').textContent = d.rank === 0 ? 'NOUVEAU RECORD !' : d.rank > 0 ? `Classement : ${d.rank + 1}e` : 'Hors classement';
-    const done = ['hangar', 'reactor', 'defense'].filter(s => d.sectors[s].done).length;
-    $('#final-stats').innerHTML = `<span>Niveau de sécurité</span><span>${d.level}</span><span>Secteurs réactivés (cycle)</span><span>${done}/3</span>` +
-      `<span>Minijeux gagnés</span><span>${d.stats.minigamesWon}/${d.stats.minigamesPlayed}</span><span>Victoires contre NULL</span><span>${d.stats.bossWins}</span>`;
-    const form = $('#name-form');
-    if (d.rank >= 0) { form.classList.remove('hidden'); $('#name-input').value = load('lastName', ''); }
-    else form.classList.add('hidden');
+    this.el.tally.classList.add('hidden'); this.tallyT = 0;
+    clearTimeout(this._zt); this.el.zones.classList.add('hidden');
+    this.bannerQueue.length = 0; this.bannerT = 0; this.el.banner.classList.remove('show');
+    this.over.start(d);
     this.open('over');
   }
 
   renderHiscores(list) {
     list = list || this.h.scores().list;
     const ol = this.el.hiscores;
-    ol.innerHTML = list.length ? list.slice(0, 5).map(e => `<li>${escapeHtml(e.name)} <span>${fmt(e.score)}</span></li>`).join('') : '<li class="empty">Aucun score enregistré</li>';
+    ol.classList.add('lb');
+    ol.innerHTML = list.length ? scoreRows(list, { n: Math.min(5, list.length) }) : '<li class="empty">Aucun score enregistré</li>';
   }
 
   // ------------------------------------------------------------ mise en page
@@ -8251,6 +9577,7 @@ class UI {
 
   // ------------------------------------------------------------ mise à jour par image
   update(game, dt) {
+    this.over.update(game, dt);
     if (this.bannerT > 0) { this.bannerT -= dt; if (this.bannerT <= 0) { this.el.banner.classList.remove('show'); setTimeout(() => this._nextBanner(), 220); } }
     if (this.tallyT > 0) { this.tallyT -= dt; if (this.tallyT <= 0) this.el.tally.classList.add('hidden'); }
     this._updateDmd(game, dt);
@@ -8278,7 +9605,8 @@ class UI {
     if (c.showMg !== showMg || c.mgInWorld !== this.mgInWorld) {
       c.showMg = showMg; c.mgInWorld = this.mgInWorld;
       // l'écran du minijeu est dessiné au-dessus de l'arène, sauf en caméra de suivi
-      e.mgBar.classList.toggle('hidden', !showMg || this.mgInWorld);
+      e.mgBar.classList.toggle('hidden', !showMg || (this.mgInWorld && this.panels));
+      e.mgBar.classList.toggle('slim', this.mgInWorld && !this.panels);
       e.missionChip.classList.toggle('hidden', showMg);
       e.goal.classList.toggle('hidden', showMg);
       e.effectsChips.classList.toggle('hidden', showMg);
@@ -8414,9 +9742,11 @@ class PhysicsWorld {
     const p = makePrim('seg', o);
     p.ax = ax; p.ay = ay; p.bx = bx; p.by = by; p.r = o.r || 0;
     this._segCache(p);
-    if (o.oneWay) { // normale du côté solide
-      const l = Math.hypot(o.oneWay[0], o.oneWay[1]);
-      p.onx = o.oneWay[0] / l; p.ony = o.oneWay[1] / l;
+    if (o.oneWay) { // normale perpendiculaire au segment, orientée du côté indiqué (côté solide)
+      let nx = -(by - ay), ny = bx - ax;
+      if (nx * o.oneWay[0] + ny * o.oneWay[1] < 0) { nx = -nx; ny = -ny; }
+      const l = Math.hypot(nx, ny) || 1;
+      p.onx = nx / l; p.ony = ny / l;
     }
     (o.dynamic ? this.dynamics : this.statics).push(p);
     return p;
@@ -8861,6 +10191,7 @@ class Table {
     this.uplink = { ball: null, t: 0, flash: 0, mode: null };
     this.spinners = { L: { a: 0, w: 0, n: 0 }, R: { a: 0, w: 0, n: 0 } };
     this.kickback = { lit: true, flash: 0 };
+    this.announced = {};        // secteurs dont l'accès a été annoncé (annonce au passage à « accessible »)
     this.loops = 0;
     this.sectors = {};
     for (const id of Object.keys(SECTORS)) this.sectors[id] = { done: false, attempts: 0, wins: 0, flash: 0, phaseKept: 0, kept: null };
@@ -9074,6 +10405,8 @@ class Table {
     this._updateDrops(dt);
 
     if (this.combo.t > 0) { this.combo.t -= dt; if (this.combo.t <= 0) { this.combo.count = 0; this.combo.last = null; } }
+    // un secteur qui devient réellement accessible (fin de multibille, dernier secteur gagné…) est annoncé
+    if (!this.lockedOut) for (const id of ['hangar', 'reactor', 'defense', 'core']) if (!this.announced[id] && this.sectorState(id) === 'ready') this.sectorReady(id);
     if (this.orbitIn && this.time - this.orbitIn.t > RULES.loopWindow) this.orbitIn = null;
     if (this.multiball && this.ballsInPlay() <= 1 && this.anims.length === 0 && !this.uplink.ball) this.endMultiball();
     if (this.deferredT > 0) {
@@ -9481,8 +10814,20 @@ class Table {
     return p > 0 ? 'prep' : 'locked';
   }
 
+  // Annonce d'accès à un secteur. En multibille, l'accès est qualifié mais en attente :
+  // l'annonce « accessible » viendra quand le secteur deviendra jouable.
   sectorReady(id) {
     const g = this.game, s = SECTORS[id];
+    const st = this.sectorState(id);
+    if (st === 'hold') {
+      this.sectors[id].flash = 2;
+      g.sfx('sectorReady');
+      g.banner(`${s.name} QUALIFIÉ`, 'Accès en attente : fin de la multibille', '#ffb52e', 1.8, 'banner');
+      g.say('hold');
+      return;
+    }
+    if (st !== 'ready' || this.announced[id]) return;
+    this.announced[id] = true;
     this.sectors[id].flash = 2;
     g.fx.sweep?.(s.color);
     g.sfx('sectorReady');
@@ -9494,6 +10839,7 @@ class Table {
 
   onMinigameEnd(sector, success) {
     const s = this.sectors[sector];
+    this.announced[sector] = false;
     s.attempts++;
     if (success) { s.done = true; s.wins++; }
     if (sector === 'hangar') this.bankL = [false, false, false];
@@ -9504,6 +10850,7 @@ class Table {
 
   // Après la victoire contre NULL : nouveau cycle, difficulté accrue.
   newCycle() {
+    this.announced = {};
     for (const id of Object.keys(this.sectors)) { this.sectors[id].done = false; this.sectors[id].phaseKept = 0; this.sectors[id].kept = null; }
     this.bankL = [false, false, false];
     this.deckTargets = [false, false, false, false];
@@ -9844,8 +11191,12 @@ class Table {
     else if (pm === 'multiball') { out.portal.main = 'mode'; out.portal.color = '#ff3df2'; out.portal.label = 'MULTIBILLE'; out.portal.blink = 1; }
     else if (pm === 'super') { out.portal.main = 'jackpot'; out.portal.color = '#ffd84a'; out.portal.label = 'SUPER JACKPOT'; out.portal.blink = 1; }
     else if (this.sectorState('core') === 'hold') { out.portal.main = 'hold'; out.portal.color = '#ffb52e'; out.portal.label = 'EN ATTENTE'; out.portal.hold = true; }
-    // rampe du pont : invite à monter quand le réacteur se prépare sur le pont
-    if (!out.lramp.main && this.sectorState('reactor') === 'prep') { out.lramp.main = 'prep'; out.lramp.color = SECTORS.reactor.color; out.lramp.label = 'PONT'; }
+    // rampe du pont : invite à monter quand le réacteur se prépare ou attend sur le pont
+    const rs = this.sectorState('reactor');
+    if (!out.lramp.main && (rs === 'prep' || rs === 'ready')) {
+      out.lramp.main = rs === 'ready' ? 'mode' : 'prep'; out.lramp.color = SECTORS.reactor.color;
+      out.lramp.label = rs === 'ready' ? 'RÉACTEUR' : 'PONT'; out.lramp.blink = rs === 'ready' ? 1 : 0;
+    }
     for (const id of SHOT_IDS) {
       const l = out[id];
       if (!l.main && l.jackpot) { l.main = 'jackpot'; l.color = '#ffd84a'; l.label = 'JACKPOT'; l.blink = 1; }
@@ -9980,7 +11331,10 @@ class BonusManager {
       }
       case 'durable': {
         const next = DURABLE.find(d => !this.durable.includes(d.id));
-        if (!next) return { title: 'SYSTÈMES OPTIMAUX', desc: 'Toutes les améliorations sont déjà installées' };
+        if (!next) {
+          const pts = this.game.addScore(100000 * lvl);
+          return { title: 'SYSTÈMES OPTIMAUX', desc: `Améliorations complètes : +${pts.toLocaleString('fr-FR')} points` };
+        }
         this.durable.push(next.id);
         if (next.id === 'flippers') this.flipperPower = 1.08;
         if (next.id === 'longSave') this.extraSave = 4;
@@ -11492,7 +12846,8 @@ class BreakoutGame extends Minigame {
     for (let c = 0; c < 6; c++) this.addFlash(X0 + c * 100, W.y0 + W.rows * (BH + GY), 140, '#29d9ff', 0.4, 0.5);
     if (this.trans) {
       this.trans.landed = true;
-      if (this.hold && this.hold.kind === 'stage') { this.hold.ready = true; this.hold.auto = this.hold.t + 1.5; }
+      // compte à rebours de relance remis à zéro : l'anneau de charge repart de 0
+      if (this.hold && this.hold.kind === 'stage') { this.hold.ready = true; this.hold.t = 0; this.hold.auto = 1.5; }
       else this.trans = null;
     }
   }
@@ -12204,6 +13559,7 @@ class FlipperArena extends Minigame {
     b.vy = -(1500 + 1500 * (this.autoRelaunch ? 0.92 : this.launchPower));
     this.shooterBall = null;
     this.plunger.kick = 1;
+    this.plunger.charge = 0;
     this.launchPower = 0.92;
     this.game.audio.stopCharge();
   }
@@ -12260,6 +13616,7 @@ class ReactorGame extends FlipperArena {
     this.rounds = lvl === 1 ? [3, 4, 5] : [4, 5, 6];
     // séquences stabilisées lors d'une tentative précédente (jamais la dernière)
     this.round = Math.min(this.rounds.length - 1, (this.kept && this.kept.round) || 0);
+    this.startRound = this.round;
     this.seq = [];
     this.stepIdx = 0;
     this.instability = 0;
@@ -12402,7 +13759,7 @@ class ReactorGame extends FlipperArena {
   results(success) {
     return {
       rewards: success ? [{ type: 'shield' }, { type: 'bumper' }] : [],
-      points: success ? Math.round(this.timeLeft) * 1500 * this.level + Math.round(100 - this.instability) * 400 : this.round * 5000,
+      points: success ? Math.round(this.timeLeft) * 1500 * this.level + Math.round(100 - this.instability) * 400 : (this.round - this.startRound) * 5000,
     };
   }
 
@@ -14042,6 +15399,12 @@ const { Scores } = __mod['src/util/storage.js'];
 
 const MINIGAMES = { hangar: BreakoutGame, reactor: ReactorGame, defense: DefenseGame, core: DuelGame };
 
+// Statistiques de la partie (rapport de fin de session)
+const newStats = () => ({
+  minigamesWon: 0, minigamesPlayed: 0, bossWins: 0,
+  jackpots: 0, superJackpots: 0, multiballs: 0, bestCombo: 0, skillShots: 0, missions: 0, extraBalls: 0, time: 0,
+});
+
 // Orchestrateur : états de partie, scènes (plateau / transition / minijeu),
 // score, réserve de billes commune, bonus, missions et IA.
 class Game {
@@ -14073,7 +15436,7 @@ class Game {
     this.slowT = 0;
     this.lastInput = null;
     this.scores = new Scores();
-    this.stats = { minigamesWon: 0, minigamesPlayed: 0, bossWins: 0 };
+    this.stats = newStats();
     this.ledgerErrors = 0;
     this.timers = [];
   }
@@ -14099,7 +15462,7 @@ class Game {
     this.betweenBalls = 0;
     this.timers = [];
     this.camera = { x: TABLE_W / 2, y: TABLE_H / 2, zoom: 1 };
-    this.stats = { minigamesWon: 0, minigamesPlayed: 0, bossWins: 0 };
+    this.stats = newStats();
     this.state = 'play';
     this.applyDifficulty();
     this.table.serveBall();
@@ -14107,8 +15470,8 @@ class Game {
     this.input.swallow();
     this.music.setMode('table');
     this.music.setFlag('multiball', false);
+    this.ui.onGameStart();          // l'afficheur passe en mode jeu avant la première réplique
     this.say('gameStart');
-    this.ui.onGameStart();
   }
 
   pause() {
@@ -14167,6 +15530,7 @@ class Game {
       if (tm.t <= 0) { this.timers.splice(i, 1); tm.fn(); }
     }
     if (this.state !== 'play') return;
+    this.stats.time += dt;
     this.bonus.paused = this.scene !== 'table';
     this.bonus.update(dt);
     if (this.scene === 'table') {
@@ -14252,6 +15616,7 @@ class Game {
 
   // Glitchs et impulsions néon du post-traitement, selon le type d'annonce.
   _screenFx(kind, d) {
+    this._tally(kind, d);
     const r = this.renderer;
     if (!r.pulse) return;
     switch (kind) {
@@ -14268,6 +15633,20 @@ class Game {
       case 'gameOver': r.glitch(1, 0.6); break;
     }
   }
+  // Compteurs du rapport de fin de session (chaque annonce n'est émise qu'une fois).
+  _tally(kind, d) {
+    const s = this.stats;
+    switch (kind) {
+      case 'jackpot': s.jackpots++; break;
+      case 'superJackpot': s.superJackpots++; break;
+      case 'multiball': s.multiballs++; break;
+      case 'skillShot': s.skillShots++; break;
+      case 'missionDone': s.missions++; break;
+      case 'extraBall': s.extraBalls++; break;
+      case 'combo': s.bestCombo = Math.max(s.bestCombo, d.n || 0); break;
+    }
+  }
+
   onLumenMessage(msg) {
     this.ui.lumen(msg);
     if (msg && msg.persona === 'null' && this.renderer.glitch) this.renderer.glitch(0.5, 0.3);
@@ -14378,7 +15757,8 @@ class Game {
         const out = this.bonus.grant(r.type, r);
         msgs.push(out.title);
       }
-      const why = result.drained ? 'Noyau retombé — retour au plateau' : 'Temps écoulé';
+      const WHY = { timeout: 'Temps écoulé', hull: 'Coque détruite', overload: 'Surcharge du réacteur' };
+      const why = result.drained ? 'Noyau retombé — retour au plateau' : (WHY[result.reason] || 'Échec');
       this.banner(`${S.name} : ÉCHEC`, msgs.length ? why + ' · ' + msgs.join(' · ') : why + ' · progression conservée', '#ff7a7a', 2.4, 'minigameFail');
       this.say(sector === 'core' ? 'null_win' : result.drained ? 'mgDrained' : 'mgFail');
     }
@@ -14453,8 +15833,9 @@ class Game {
     this.sfx('gameOver');
     this.dmd('gameOver', { score: this.score });
     const rank = this.scores.rank(this.score);
-    if (rank === 0 && this.score > 0) this.say('highScore'); else this.say('gameOver');
-    this.ui.showGameOver({ score: this.score, rank, level: this.level, stats: this.stats, sectors: this.table.sectors });
+    // le record est annoncé par LUMEN au moment de sa révélation (séquence de fin, ui)
+    this.say('gameOver');
+    this.ui.showGameOver({ score: this.score, rank, level: this.level, stats: this.stats, sectors: this.table.sectors, best: this.scores.best });
   }
 
   // ------------------------------------------------------------ rendu
@@ -14549,13 +15930,14 @@ input.onAnyInput = () => audio.unlock();
 input.onCommand = (cmd) => {
   const top = ui.topScreen();
   const focusedBtn = document.activeElement && (document.activeElement.tagName === 'BUTTON' || document.activeElement.tagName === 'INPUT');
+  // fin de partie : la séquence décide (passer la cinématique, valider une initiale, rejouer)
+  if (game.state === 'over' && top === 'over') { ui.over.command(cmd, focusedBtn); return; }
   if (cmd === 'pause') {
     if (game.state === 'play') game.pause();
     else if (game.state === 'pause') { if (top === 'pause') game.resume(); else ui.back(); }
     else if (top && top !== 'title' && top !== 'over') ui.back();
   } else if ((cmd === 'confirm' || cmd === 'launchKey') && !focusedBtn) {
     if (game.state === 'title' && top === 'title') startGame();
-    else if (game.state === 'over' && top === 'over' && cmd === 'confirm') startGame();
   }
 };
 
@@ -14581,7 +15963,7 @@ function onResize() {
   canvas.style.transform = cv.transform;
   canvas.style.transformOrigin = cv.origin;
   renderer.resize(cv.width, cv.height, view);
-  renderer.resizeBackdrop(window.innerWidth, window.innerHeight, ui.screenRect);
+  renderer.resizeBackdrop(window.innerWidth, window.innerHeight, ui.screenRect, cv);
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 150));

@@ -65,9 +65,11 @@ export class PhysicsWorld {
     const p = makePrim('seg', o);
     p.ax = ax; p.ay = ay; p.bx = bx; p.by = by; p.r = o.r || 0;
     this._segCache(p);
-    if (o.oneWay) { // normale du côté solide
-      const l = Math.hypot(o.oneWay[0], o.oneWay[1]);
-      p.onx = o.oneWay[0] / l; p.ony = o.oneWay[1] / l;
+    if (o.oneWay) { // normale perpendiculaire au segment, orientée du côté indiqué (côté solide)
+      let nx = -(by - ay), ny = bx - ax;
+      if (nx * o.oneWay[0] + ny * o.oneWay[1] < 0) { nx = -nx; ny = -ny; }
+      const l = Math.hypot(nx, ny) || 1;
+      p.onx = nx / l; p.ony = ny / l;
     }
     (o.dynamic ? this.dynamics : this.statics).push(p);
     return p;

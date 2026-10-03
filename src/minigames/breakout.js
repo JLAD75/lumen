@@ -200,7 +200,8 @@ export class BreakoutGame extends Minigame {
     for (let c = 0; c < 6; c++) this.addFlash(X0 + c * 100, W.y0 + W.rows * (BH + GY), 140, '#29d9ff', 0.4, 0.5);
     if (this.trans) {
       this.trans.landed = true;
-      if (this.hold && this.hold.kind === 'stage') { this.hold.ready = true; this.hold.auto = this.hold.t + 1.5; }
+      // compte à rebours de relance remis à zéro : l'anneau de charge repart de 0
+      if (this.hold && this.hold.kind === 'stage') { this.hold.ready = true; this.hold.t = 0; this.hold.auto = 1.5; }
       else this.trans = null;
     }
   }

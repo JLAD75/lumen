@@ -1,5 +1,5 @@
 import { TABLE_W, TABLE_H, COLORS } from '../config.js';
-import { lerp, mulberry32, rgba, clamp, TAU } from '../util/math.js';
+import { lerp, mulberry32, rgba, clamp, clamp01, smoothstep, TAU } from '../util/math.js';
 import { glowSprite } from './sprites.js';
 import { FX } from './fx.js';
 import { TableArt, drawPlate, drawStaticPrims, drawSling } from './tableArt.js';
@@ -10,6 +10,7 @@ export const FONT = '"Rajdhani", "Segoe UI", system-ui, sans-serif';
 export const FONT_D = '"Orbitron", "Rajdhani", "Segoe UI", sans-serif';
 
 const BALL_COLORS = ['#29e3ff', '#ff3df2', '#ffd84a', '#5dff8f'];
+const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // Rendu Canvas 2D : caméra monde, calques statiques pré-rendus, scènes, effets.
 export class Renderer {
@@ -46,7 +47,15 @@ export class Renderer {
     this.dprCap = 2;
     // étendue du monde affiché (le plateau long commence au-dessus de y = 0)
     this.bounds = { x0: 0, y0: 0, w: TABLE_W, h: TABLE_H };
+    this.shut = null;              // extinction du plateau (fin de partie)
+    this.lampK = null;             // atténuation des halos selon y (pendant l'extinction)
   }
+
+  // Fin de partie : scintillement, vague d'extinction du bas vers le haut, l'œil de LUMEN
+  // se ferme puis celui de NULL s'ouvre (ambiance rouge). Durées en secondes.
+  shutdown(o = {}) { this.shut = { t: 0, pre: o.pre ?? 0.45, dur: o.dur ?? 2.8, redAt: o.redAt ?? 3.65, front: 1e4, close: 0, red: 0, flick: 1, sparkT: 0 }; }
+  shutdownEnd() { if (this.shut) this.shut.t = Math.max(this.shut.t, this.shut.redAt + 1.5); }
+  powerOn() { this.shut = null; this.lampK = null; }
 
   setBounds(b) {
     if (b.x0 === this.bounds.x0 && b.y0 === this.bounds.y0 && b.w === this.bounds.w && b.h === this.bounds.h) return;
@@ -68,7 +77,8 @@ export class Renderer {
   }
 
   // Fond et calque écran plein écran (canevas séparés, jamais inclinés).
-  resizeBackdrop(W, H, screenRect) {
+  resizeBackdrop(W, H, screenRect, cv) {
+    if (cv) this.cv = cv;
     const dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
     this.SW = W; this.SH = H;
     if (screenRect) this.screenRect = screenRect;
@@ -84,7 +94,15 @@ export class Renderer {
     if (ov && R) {
       const cx = R.x + R.w / 2, cy = R.y + R.h / 2;
       ov.vig.style.background = `radial-gradient(ellipse ${Math.max(R.w * 0.9, W * 0.55)}px ${Math.max(R.h * 0.75, H * 0.6)}px at ${cx}px ${cy}px, rgba(0,0,0,0) 55%, rgba(0,0,0,0.5) 100%)`;
-      Object.assign(ov.frame.style, { left: (R.x - 6) + 'px', top: (R.y - 6) + 'px', width: (R.w + 12) + 'px', height: (R.h + 12) + 'px' });
+      const v = this.view, C = this.cv;
+      if (C && C.transform !== 'none') {
+        Object.assign(ov.frame.style, {
+          left: (C.left + v.x - 6) + 'px', top: (C.top + v.y - 6) + 'px', width: (v.w + 12) + 'px', height: (v.h + 12) + 'px',
+          transform: C.transform, transformOrigin: `${v.w / 2 + 6}px ${v.h + 6}px`,
+        });
+      } else {
+        Object.assign(ov.frame.style, { left: (R.x - 6) + 'px', top: (R.y - 6) + 'px', width: (R.w + 12) + 'px', height: (R.h + 12) + 'px', transform: 'none' });
+      }
     }
   }
 
@@ -172,6 +190,7 @@ export class Renderer {
     this.time += dt;
     this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
     const ctx = this.ctx;
+    if (this.shut) { if (game.state === 'over') this._shutStep(dt); else this.powerOn(); }
     this._mood(game);
     const info = { rect: this.screenRect, mood: this.mood, intensity: this.intensity, level: game.level };
     if (this.backdrop) this.backdrop.draw(this.bgCtx, this.time, info);
@@ -223,11 +242,12 @@ export class Renderer {
     this.worldTransform(cam);
     this.fx.draw(ctx, this.font);
 
-    if (game.state === 'play' && game.resumeT > 0) this._countdown(game.resumeT);
+    if (game.state === 'play' && game.resumeT > 0) { this.screenTransform(); this._countdown(game.resumeT); }
     // post-traitement du plateau (bloom, glitch)
     const fps = this.fpsAvg;
     this.post.setFps(fps);
-    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content' });
+    const v = this.view, d = this.dpr;
+    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content', clip: { x: v.x * d, y: v.y * d, w: v.w * d, h: v.h * d } });
     // calque écran (HTML) : flash, fondu, bords néon selon l'ambiance, cadre des impulsions
     if (this.ov) {
       this._overlay(dt, tv);
@@ -277,6 +297,7 @@ export class Renderer {
     let mood = 'calm';
     if ((msg && msg.persona === 'null') || (game.minigame && game.minigame.sector === 'core')) mood = 'null';
     else if (t.multiball || game.bonus.mult >= 3 || t.combo.count >= 4 || (game.minigame && game.minigame.timeLeft < 10)) mood = 'hot';
+    if (this.shut && this.shut.red > 0) mood = 'null';
     this.mood = mood;
     const target = Math.min(1, t.combo.count / 8 + (game.bonus.mult - 1) * 0.15 + (t.multiball ? 0.4 : 0));
     this.intensity += (target - this.intensity) * 0.05;
@@ -288,23 +309,105 @@ export class Renderer {
     const v = this.view, B = this.bounds;
     if (this.debugCam) return this.debugCam;   // inspection visuelle (outils de développement)
     const cx = B.x0 + B.w / 2, cy = B.y0 + B.h / 2;
-    if (!v.follow) { this.camY = cy; return { x: cx, y: cy, zoom: 1 }; }
+    if (!v.follow) {
+      this.camY = cy;
+      // extinction : lente avancée vers l'œil (effet de ralenti)
+      if (this.shut && !this.settings.reducedMotion) { const k = smoothstep(0, 4, this.shut.t); return { x: cx, y: lerp(cy, 560, 0.22 * k), zoom: 1 + 0.07 * k }; }
+      return { x: cx, y: cy, zoom: 1 };
+    }
     const half = v.h / v.scale / 2;
     let target = B.y0 + B.h - half;
     const balls = game.scene === 'minigame' && game.minigame ? game.minigame.world.balls : game.table.world.balls;
-    let lowest = -1;
+    let lowest = -Infinity;
     for (const b of balls) if (b.y > lowest) lowest = b.y;
-    if (lowest >= 0 && game.state === 'play') target = lowest + half * 0.25;
+    if (balls.length && game.state === 'play') target = lowest + half * 0.25;
     target = clamp(target, B.y0 + half, B.y0 + B.h - half);
     if (this.camY === undefined) this.camY = target;
     this.camY += (target - this.camY) * Math.min(1, dt * 5);
     return { x: cx, y: this.camY, zoom: 1 };
   }
 
+  // ------------------------------------------------------------ extinction (fin de partie)
+  _shutStep(dt) {
+    const S = this.shut, B = this.bounds, yb = B.y0 + B.h;
+    S.t += dt;
+    S.u = clamp01((S.t - S.pre) / S.dur);
+    S.front = S.t < S.pre ? 1e4 : yb + 20 - (B.h + 280) * smoothstep(0, 1, S.u);
+    S.flick = S.t < S.pre ? (hash(Math.floor(S.t * 22)) > 0.45 ? 1 : 0.2) : 1;
+    // l'œil se ferme quand la vague l'atteint, puis NULL ouvre le sien
+    S.close = clamp01((this.art.ring.y + 60 - S.front) / 110);
+    S.red = clamp01((S.t - S.redAt) / 1.1);
+    // étincelles des lampes qui grillent sur l'arête de coupure
+    if (S.u > 0 && S.u < 1 && !this.settings.reducedFx) {
+      S.sparkT -= dt;
+      if (S.sparkT <= 0) { S.sparkT = 0.05 + Math.random() * 0.08; this.fx.spark(40 + Math.random() * 500, S.front + Math.random() * 30, 700 + Math.random() * 900); }
+    }
+  }
+
+  // atténuation des halos du plateau à la hauteur y (1 = allumé, 0 = éteint)
+  _lamp(y) {
+    const S = this.shut;
+    if (S.t < S.pre) return S.flick;
+    const d = y - S.front;
+    if (d < -30) return 1;
+    if (d > 80) return 0;
+    const fl = hash(Math.floor(y / 36) * 7.3 + Math.floor(this.time * 16)) > 0.45 ? 1 : 0.15;
+    return fl * clamp01(1 - (d + 30) / 110);
+  }
+
+  // Voile d'obscurité sous la vague, arête électrique, alarmes de NULL, puis l'œil par-dessus.
+  _shutdown(ctx, game) {
+    const S = this.shut, B = this.bounds, t = this.time;
+    const yb = B.y0 + B.h, x0 = B.x0, w = B.w, DARK = 0.9, FADE = 70;
+    ctx.globalCompositeOperation = 'source-over';
+    if (S.t < S.pre) {
+      if (S.flick < 1) { ctx.globalAlpha = 0.55; ctx.fillStyle = '#030208'; ctx.fillRect(x0, B.y0, w, B.h); ctx.globalAlpha = 1; }
+    } else {
+      const f = Math.max(B.y0 - 120, S.front);
+      if (f < yb) {
+        const g = ctx.createLinearGradient(0, f, 0, f + FADE);
+        g.addColorStop(0, 'rgba(3,2,8,0)'); g.addColorStop(1, `rgba(3,2,8,${DARK})`);
+        ctx.fillStyle = g; ctx.fillRect(x0, f, w, FADE);
+        if (f + FADE < yb) { ctx.fillStyle = `rgba(3,2,8,${DARK})`; ctx.fillRect(x0, f + FADE, w, yb - f - FADE); }
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      if (S.u < 1) {
+        // arête de coupure : ligne électrique qui remonte le plateau, lampes qui grillent juste dessous
+        const a = 0.75 + 0.25 * Math.sin(t * 47);
+        ctx.globalAlpha = 0.85 * a;
+        ctx.drawImage(glowSprite('#ff2a50', 64), x0 - 80, f - 55, w + 160, 110);
+        ctx.globalAlpha = a; ctx.fillStyle = '#fff0f3'; ctx.fillRect(x0 + 20, f - 1, w - 40, 3);
+        const n = this.settings.reducedFx ? 4 : 14;
+        for (let i = 0; i < n; i++) {
+          const x = x0 + 30 + Math.random() * (w - 60), y = f + Math.random() * 60, s = 18 + Math.random() * 30;
+          ctx.globalAlpha = Math.random() * 0.8;
+          ctx.drawImage(glowSprite(i % 3 ? '#ff2a50' : '#ffffff', 32), x - s / 2, y - s / 2, s, s);
+        }
+      }
+      if (S.red > 0) {
+        // NULL aux commandes : lueur rouge qui respire, balises d'alarme en haut du plateau
+        const p = 0.5 + 0.5 * Math.sin(t * 2.2);
+        ctx.globalAlpha = S.red * (0.12 + 0.1 * p);
+        ctx.drawImage(glowSprite('#ff1040', 64), x0 - 220, this.art.ring.y - 560, w + 440, 1120);
+        [[44, -30, 0], [556, -30, Math.PI]].forEach(([x, y, ph]) => {
+          const k = Math.sin(t * 4.2 + ph) > 0.2 ? 1 : 0.12;
+          ctx.globalAlpha = S.red * 0.75 * k;
+          ctx.drawImage(glowSprite('#ff2050', 64), x - 110, y - 110, 220, 220);
+        });
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    this.art._eye(ctx, game.table, game, S);
+  }
+
   _scene(game, name, mg) {
     const ctx = this.ctx;
     if (name === 'table') {
+      if (this.shut) this.lampK = (y) => this._lamp(y);
       this.art.draw(ctx, game.table, game);
+      this.lampK = null;
+      if (this.shut) this._shutdown(ctx, game);
     } else if (mg) {
       this.blitLayer(ctx, this.layer('mg-' + mg.sector + '-' + mg.level, (g) => this._arenaStatic(g, mg)));
       mg.render(ctx, this, game);
@@ -353,7 +456,7 @@ export class Renderer {
     const prog = h.relaunch ? 'RELANCE…' : h.progress;
     this.text(prog, 300, y0 + 56, 16, '#e8f4ff', 'center', 0.95);
     // chrono
-    const u = Math.max(0, h.timeLeft) / h.timeLimit;
+    const u = clamp(Math.max(0, h.timeLeft) / h.timeLimit, 0, 1);
     const hurry = h.timeLeft < 10;
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(60, y0 + 76, 480, 10);
     ctx.fillStyle = hurry ? (Math.sin(t * 14) > 0 ? '#ff4060' : '#ffb52e') : col;
@@ -361,7 +464,15 @@ export class Renderer {
     this.glow(60 + 480 * u, y0 + 81, 40, ctx.fillStyle, 0.6);
     this.text(`${Math.ceil(Math.max(0, h.timeLeft))} s`, 64, y0 + 103, 15, hurry ? '#ff7088' : '#bfe9ff', 'left', 1, true);
     const note = h.perk ? 'AVANTAGE : ' + h.perk.name : h.objective;
-    this.text(note, 536, y0 + 103, 12, h.perk ? col : '#9fb3d6', 'right', 0.9);
+    this._fitText(note, 536, y0 + 103, 15, 380, h.perk ? col : '#c4d4f0', 'right');
+  }
+
+  // texte réduit si besoin pour tenir dans une largeur donnée (unités monde)
+  _fitText(str, x, y, size, maxW, color, align) {
+    const ctx = this.ctx;
+    ctx.font = `700 ${size}px ${this.font}`;
+    const w = ctx.measureText(str).width;
+    this.text(str, x, y, w > maxW ? Math.max(9, size * maxW / w) : size, color, align, 0.95);
   }
 
   _core(core, color) {
@@ -418,6 +529,7 @@ export class Renderer {
 
   // ------------------------------------------------------------ primitives communes
   glow(x, y, size, color, a = 1) {
+    if (this.lampK) { a *= this.lampK(y); if (a < 0.01) return; }
     const ctx = this.ctx;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = a;

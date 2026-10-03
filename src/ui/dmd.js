@@ -194,7 +194,7 @@ const ACCENTED = {
 const ALIAS = {
   '’': '\'', '‘': '\'', '´': '\'', '`': '\'', '“': '"', '”': '"', '„': '"', '«': '"', '»': '"',
   '–': '-', '—': '-', '‐': '-', '‑': '-', '−': '-', '_': '-', '•': '·', '⋅': '·', '∙': '·',
-  '[': '(', ']': ')', '{': '(', '}': ')', '…': '.', ' ': ' ', ' ': ' ', ' ': ' ', '\t': ' ',
+  '[': '(', ']': ')', '{': '(', '}': ')', '…': '.', '←': '<', '→': '>', '↑': '^', '↓': 'v', ' ': ' ', ' ': ' ', ' ': ' ', '\t': ' ',
 };
 
 function expand(rows) {
@@ -1045,6 +1045,11 @@ export class DMD {
     if (!def) { def = EV.banner; data = { title: data.title || String(kind).toUpperCase(), sub: data.sub, color: data.color }; kind = 'banner'; }
     const e = { kind, def, data, t: 0, pt: -1, dur: def.dur, pri: def.pri, wait: 0, col: data.color || def.col || PALETTE[0], seed: (Math.random() * 1e9) | 0, memo: {} };
     if (kind === '_null') e.dur = Math.min(4.6, Math.max(2.2, 1.6 + String(data.text || '').length * 0.045));
+    // sous-titre long : laisser le temps de le faire défiler en entier
+    if (data.sub) {
+      const over = measure(String(data.sub).toUpperCase(), F_S) - W;
+      if (over > 0) e.dur = Math.min(7, Math.max(e.dur, 2.4 + over / 34));
+    }
     if (kind === 'gameOver') this.lastScore = Math.max(0, Math.floor(data.score ?? this.score));
     const cur = this.ev;
     if (cur && cur.kind === kind && def.merge) { cur.data = data; cur.t = Math.min(cur.t, 0.45); cur.bumpT = cur.t; return; }

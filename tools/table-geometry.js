@@ -126,6 +126,52 @@ if (arg === 'pont' || arg === 'tout') {
   console.log(`  billes lâchées sur le pont sans jouer : ${ok}/${n} redescendues en 12 s`);
 }
 
+// 5. Recensement des blocages : où la bille s'immobilise-t-elle sans aide ?
+// Billes lâchées partout (toutes couches), batteurs au repos ; on note chaque
+// micro-vibration (0,7 s d'immobilité) et chaque secousse (2,6 s), regroupées par zone.
+if (arg === 'blocages' || arg === 'tout') {
+  console.log('\n[blocages] 1500 billes lâchées au hasard, batteurs au repos (8 s chacune)');
+  const { g, t } = makeGame();
+  const w = t.world;
+  for (const b of [...w.balls]) w.removeBall(b);
+  t.shooterBall = null;
+  t.onDrain = () => {};
+  t.queueLaunch = () => {};
+  g.say = () => {};
+  const cells = new Map();
+  let vib = 0, nudges = 0;
+  // zones accessibles en jeu [x0, y0, x1, y1, couche] (jamais l'intérieur d'un élément plein)
+  const ZONES = [[200, 186, 420, 200, 0], [180, 480, 380, 560, 0], [200, 700, 360, 800, 0], [150, -40, 410, 40, 2],
+    [30, 250, 52, 400, 0], [510, 250, 532, 400, 0], [446, 230, 492, 420, 0], [75, 560, 110, 600, 0], [455, 560, 490, 600, 0]];
+  for (let k = 0; k < 1500; k++) {
+    const Z = ZONES[k % ZONES.length];
+    const layer = Z[4];
+    const b = new Ball(Z[0] + Math.random() * (Z[2] - Z[0]), Z[1] + Math.random() * (Z[3] - Z[1]));
+    b.layer = layer;
+    const a = Math.random() * Math.PI * 2, sp = Math.random() * 1500;
+    b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+    w.addBall(b);
+    for (let i = 0; i < 960; i++) {
+      b.px = b.x; b.py = b.y;
+      w.step(DT);
+      t._updateAnims(DT); t._updateUplink(DT);
+      const before = b.stuckT;
+      t._checkBalls(DT);
+      if (!w.balls.includes(b)) break;
+      const hit = (before <= 0.7 && b.stuckT > 0.7) ? 'v' : (before > 2.0 && b.stuckT < before) ? 'n' : null;
+      if (hit && b.x < 542 && !(b.x > 140 && b.x < 420 && b.y > 920)) {   // hors couloir de lancement et batteurs
+        const key = `${Math.round(b.x / 20) * 20},${Math.round(b.y / 20) * 20} c${b.layer}`;
+        cells.set(key, (cells.get(key) || 0) + 1);
+        if (hit === 'v') vib++; else nudges++;
+      }
+    }
+    if (w.balls.includes(b)) w.removeBall(b);
+  }
+  const top = [...cells.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+  console.log(`  micro-vibrations : ${vib}, secousses : ${nudges}`);
+  for (const [k, n] of top) console.log(`   ${k} : ${n}`);
+}
+
 // 4. Robustesse : billes aléatoires sur chaque couche
 if (arg === 'robuste' || arg === 'tout') {
   console.log('\n[robuste] 400 billes aléatoires (8 s)');

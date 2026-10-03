@@ -367,11 +367,13 @@ for (const level of [1, 2]) {
   const within = (k) => att.filter(a => a <= k).length;
   log(`  niv. ${level} : réussite en 1 tentative ${pct(within(1), RUNS)} · ≤ 2 : ${pct(within(2), RUNS)} · ≤ 3 : ${pct(within(3), RUNS)} · ≤ 6 : ${pct(within(6), RUNS)}`);
   check(errors === 0, 'campagne sans exception');
-  if (level === 1) check(within(3) / RUNS >= 0.5, 'niveau 1 : au moins la moitié des campagnes réussies en 3 tentatives');
+  // statistiques : vérifiées seulement sur un échantillon suffisant (sinon simple information)
+  if (level === 1 && RUNS >= 20) check(within(3) / RUNS >= 0.5, 'niveau 1 : au moins la moitié des campagnes réussies en 3 tentatives');
 }
 
 const s1 = summary['niv. 1 (boucliers illimités)'];
-check(s1.wins / RUNS >= 0.35, `niveau 1 : le pilote simple gagne une bonne part des parties dans le temps imparti (${pct(s1.wins, RUNS)})`);
+if (RUNS >= 20) check(s1.wins / RUNS >= 0.35, `niveau 1 : le pilote simple gagne une bonne part des parties dans le temps imparti (${pct(s1.wins, RUNS)})`);
+else log(`  (taux de réussite indicatif sur ${RUNS} parties : ${pct(s1.wins, RUNS)})`);
 
 log(`\nSons demandés : ${[...sfxLog.keys()].filter(k => k.startsWith('def')).sort().join(', ')}`);
 log(`\nRésultat : ${passes} vérifications réussies, ${failures} échec(s).`);

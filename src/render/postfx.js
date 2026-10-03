@@ -135,6 +135,10 @@ export class PostFX {
     ctx.globalCompositeOperation = 'source-over';
 
     if (doContent) {
+      // écritures limitées à la zone du plateau (info.clip, px du canvas) : un canvas
+      // transparent ne doit pas recevoir de voile hors du plateau
+      const clip = info && info.clip;
+      if (clip) { ctx.save(); ctx.beginPath(); ctx.rect(clip.x, clip.y, clip.w, clip.h); ctx.clip(); }
       // 1) lectures du canvas, toutes avant la première écriture
       const bq = rfx ? 0 : q;
       const bloom = this._bloomRead(canvas, bq);
@@ -148,6 +152,7 @@ export class PostFX {
         this._split(ctx, Math.max(1, Math.round(d * this.dpr)), Math.min(0.55, 0.2 + 0.4 * ck));
       }
       if (gk > 0.01) { if (rfx || rm) this._tint(ctx, gk); else this._blocks(ctx, gk); }
+      if (clip) ctx.restore();
     }
     if (doOverlay) {
       this._edgesFx(ctx, rect, inten, rfx);

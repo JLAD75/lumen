@@ -22,9 +22,10 @@ export class Ambience {
     // recyclage d'air
     const src = ctx.createBufferSource(); src.buffer = A.pinkBuf; src.loop = true;
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = 0.6;
-    const ag = ctx.createGain(); ag.gain.value = 0.25;
+    // souffle stable et discret (une modulation lente évoquait des vagues)
+    const ag = ctx.createGain(); ag.gain.value = 0.07;
     const lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.11;
-    const lg2 = ctx.createGain(); lg2.gain.value = 0.1;
+    const lg2 = ctx.createGain(); lg2.gain.value = 0.012;
     lfo2.connect(lg2); lg2.connect(ag.gain); lfo2.start(t);
     src.connect(bp); bp.connect(ag); ag.connect(bus); src.start(t);
     this.nextEvent = t + 3;
@@ -50,7 +51,7 @@ export class Ambience {
     } else if (kind === 2) { // crépitement de circuit
       for (let i = 0; i < 8; i++) A.noise({ f: 3000 + Math.random() * 4000, q: 4, t: t + Math.random() * 0.5, dur: 0.012, gain: 0.08, dest: o });
     } else { // moteur lointain
-      A.noise({ pink: true, f: 120, f2: 260, q: 1.2, filter: 'lowpass', dur: 2.5, a: 0.8, gain: 0.25, dest: o });
+      A.noise({ pink: true, f: 120, f2: 260, q: 1.2, filter: 'lowpass', dur: 2.5, a: 0.8, gain: 0.1, dest: o });
     }
   }
 }

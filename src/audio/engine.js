@@ -1,5 +1,6 @@
 import { SFX } from './sfx.js';
 import { Music } from './music.js';
+import { Soundtrack } from './soundtrack.js';
 import { Voice } from './voice.js';
 import { Ambience } from './ambience.js';
 import { clamp } from '../util/math.js';
@@ -24,6 +25,7 @@ export class AudioEngine {
   unlock() {
     if (this.ctx) {
       if (this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume().catch(() => {});
+      if (this.soundtrack) this.soundtrack.retry();
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -58,12 +60,18 @@ export class AudioEngine {
     this.pinkBuf = this._noise(4, 'pink');
     this.ready = true;
     this.applyVolumes();
-    const real = new Music(this);
-    this.music.attach(real);
-    this.music = real;
+    const proc = new Music(this);
+    this.soundtrack = new Soundtrack(this);
+    this.soundtrack.unlock();
+    const mix = new MusicMix(proc, this.soundtrack, this);
+    this.music.attach(mix);
+    this.music = mix;
     this.voice = new Voice(this);
     this.amb = new Ambience(this);
-    real.start();
+    proc.start();
+    // fondus de la bande-son (indépendants de la boucle de jeu, qui s'arrête en pause)
+    let last = performance.now();
+    setInterval(() => { const now = performance.now(); this.soundtrack.update(Math.min(0.25, (now - last) / 1000)); last = now; }, 50);
     this.amb.start();
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return;
@@ -104,9 +112,12 @@ export class AudioEngine {
     this.buses.music.gain.setTargetAtTime(s.music * 0.55 * (p ? 0.35 : 1), t, 0.08);
     this.buses.sfx.gain.setTargetAtTime(s.sfx * 0.9 * (p ? 0 : 1), t, 0.05);
     this.buses.voice.gain.setTargetAtTime(s.voice * 0.9 * (p ? 0 : 1), t, 0.05);
-    this.buses.amb.gain.setTargetAtTime(s.sfx * 0.45 * (p ? 0.3 : 1), t, 0.2);
+    // l'ambiance de la station se tait quand une piste enregistrée joue (ambK = 0)
+    this.buses.amb.gain.setTargetAtTime(s.sfx * 0.45 * (p ? 0.3 : 1) * (this.ambK ?? 1), t, 0.6);
     this.musicIn.frequency.setTargetAtTime(p ? 700 : 18000, t, 0.1);
   }
+
+  setAmbience(k) { if (this.ambK !== k) { this.ambK = k; this.applyVolumes(); } }
 
   setPaused(p) {
     this.paused = p;
@@ -249,6 +260,41 @@ export class AudioEngine {
   stopCharge() { if (this.ready) SFX.stopCharge(this); }
 
   pan(x) { return clamp((x / 600) * 2 - 1, -1, 1) * 0.65; }
+}
+
+// Aiguillage musical : la piste enregistrée du mode (assets/music) si elle existe,
+// sinon la musique procédurale. La multibille a sa propre piste sur le plateau.
+const TRACK_OF = { title: 'title', table: 'table', brick: 'hangar', reactor: 'reactor', defense: 'defense', duel: 'duel', gameover: 'gameover' };
+
+class MusicMix {
+  constructor(proc, st, A) {
+    this.proc = proc; this.st = st; this.A = A;
+    this.mode = 'title'; this.flags = {};
+    st.onPlaying = (key) => { if (key === this.key) { this.proc.muted = true; A.setAmbience(0); } };
+    st.onFail = () => this._route();
+  }
+
+  _route() {
+    let key = TRACK_OF[this.mode] || null;
+    if (key === 'table' && this.flags.multiball && this.st.usable('multiball')) key = 'multiball';
+    if (key && this.st.usable(key)) {
+      if (key !== this.key) this.st.play(key, { resume: key === 'table' });
+      this.key = key;
+    } else {
+      this.key = null;
+      this.st.stop();
+      this.proc.muted = false;
+      this.A.setAmbience(1);
+    }
+  }
+
+  setMode(m, immediate) { this.mode = m; this.proc.setMode(m, immediate); this._route(); }
+  setFlag(k, v) { this.flags[k] = v; this.proc.setFlag(k, v); if (k === 'multiball') this._route(); }
+  setIntensity(v) { this.proc.setIntensity(v); }
+  setTension(v) { this.proc.setTension(v); }
+  setLevel(l) { this.proc.setLevel(l); }
+  bump(x) { this.proc.bump(x); }
+  currentChord() { return this.proc.currentChord(); }
 }
 
 // Permet d'appeler setMode/setIntensity avant le déverrouillage audio.

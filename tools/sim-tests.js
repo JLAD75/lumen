@@ -406,6 +406,47 @@ log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
     t.onMinigameEnd('defense', true);
     check(t.R.drops.every(p => p.enabled), 'cibles relevées après le minijeu');
   }
+  // accès au NOYAU annoncé quand il devient jouable, même s'il était en attente (multibille)
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.3);
+    events.length = 0;
+    t.sectors.hangar.done = t.sectors.reactor.done = true;
+    g.bonus.deferredMB = 1;            // multibille différée en attente (cas de la DÉFENSE gagnée en dernier)
+    t.sectors.defense.done = true;
+    run(g, 0.2);
+    const early = events.filter(e => e.startsWith('banner:NOYAU ACCESSIBLE')).length;
+    g.bonus.deferredMB = 0;
+    run(g, 0.2);
+    const late = events.filter(e => e.startsWith('banner:NOYAU ACCESSIBLE')).length;
+    check(early === 0 && late === 1, `NOYAU : pas d'annonce pendant la multibille, une annonce à la fin (${early} puis ${late})`);
+  }
+  // couloir entre la rampe droite et l'orbite droite : la bille qui y tombe ressort seule
+  {
+    const { Ball } = await import('../src/physics/ball.js');
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table, w = t.world;
+    for (const b of [...w.balls]) w.removeBall(b);
+    t.shooterBall = null;
+    let stuck = 0;
+    for (let k = 0; k < 60; k++) {
+      const b = new Ball(448 + Math.random() * 44, 240 + Math.random() * 170);
+      b.vx = (Math.random() - 0.5) * 600; b.vy = (Math.random() - 0.5) * 600;
+      w.addBall(b);
+      for (let i = 0; i < 600 && w.balls.includes(b); i++) {
+        b.px = b.x; b.py = b.y; w.step(DT);
+        if (b.stuckT === undefined) b.stuckT = 0;
+        const before = b.stuckT; t._checkBalls(DT);
+        if (before <= 0.7 && b.stuckT > 0.7) { stuck++; break; }
+        if (b.y > 520) break;
+      }
+      if (w.balls.includes(b)) w.removeBall(b);
+    }
+    check(stuck === 0, `couloir rampe droite / orbite : aucune bille immobilisée (${stuck}/60)`);
+  }
   // kickback : renvoie la bille une fois, puis s'éteint
   {
     const { g } = makeGame();

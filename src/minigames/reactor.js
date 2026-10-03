@@ -24,6 +24,7 @@ export class ReactorGame extends FlipperArena {
     this.rounds = lvl === 1 ? [3, 4, 5] : [4, 5, 6];
     // séquences stabilisées lors d'une tentative précédente (jamais la dernière)
     this.round = Math.min(this.rounds.length - 1, (this.kept && this.kept.round) || 0);
+    this.startRound = this.round;
     this.seq = [];
     this.stepIdx = 0;
     this.instability = 0;
@@ -166,7 +167,7 @@ export class ReactorGame extends FlipperArena {
   results(success) {
     return {
       rewards: success ? [{ type: 'shield' }, { type: 'bumper' }] : [],
-      points: success ? Math.round(this.timeLeft) * 1500 * this.level + Math.round(100 - this.instability) * 400 : this.round * 5000,
+      points: success ? Math.round(this.timeLeft) * 1500 * this.level + Math.round(100 - this.instability) * 400 : (this.round - this.startRound) * 5000,
     };
   }
 

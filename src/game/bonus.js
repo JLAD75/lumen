@@ -86,7 +86,10 @@ export class BonusManager {
       }
       case 'durable': {
         const next = DURABLE.find(d => !this.durable.includes(d.id));
-        if (!next) return { title: 'SYSTÈMES OPTIMAUX', desc: 'Toutes les améliorations sont déjà installées' };
+        if (!next) {
+          const pts = this.game.addScore(100000 * lvl);
+          return { title: 'SYSTÈMES OPTIMAUX', desc: `Améliorations complètes : +${pts.toLocaleString('fr-FR')} points` };
+        }
         this.durable.push(next.id);
         if (next.id === 'flippers') this.flipperPower = 1.08;
         if (next.id === 'longSave') this.extraSave = 4;

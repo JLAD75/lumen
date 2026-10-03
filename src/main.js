@@ -62,13 +62,14 @@ input.onAnyInput = () => audio.unlock();
 input.onCommand = (cmd) => {
   const top = ui.topScreen();
   const focusedBtn = document.activeElement && (document.activeElement.tagName === 'BUTTON' || document.activeElement.tagName === 'INPUT');
+  // fin de partie : la séquence décide (passer la cinématique, valider une initiale, rejouer)
+  if (game.state === 'over' && top === 'over') { ui.over.command(cmd, focusedBtn); return; }
   if (cmd === 'pause') {
     if (game.state === 'play') game.pause();
     else if (game.state === 'pause') { if (top === 'pause') game.resume(); else ui.back(); }
     else if (top && top !== 'title' && top !== 'over') ui.back();
   } else if ((cmd === 'confirm' || cmd === 'launchKey') && !focusedBtn) {
     if (game.state === 'title' && top === 'title') startGame();
-    else if (game.state === 'over' && top === 'over' && cmd === 'confirm') startGame();
   }
 };
 
@@ -94,7 +95,7 @@ function onResize() {
   canvas.style.transform = cv.transform;
   canvas.style.transformOrigin = cv.origin;
   renderer.resize(cv.width, cv.height, view);
-  renderer.resizeBackdrop(window.innerWidth, window.innerHeight, ui.screenRect);
+  renderer.resizeBackdrop(window.innerWidth, window.innerHeight, ui.screenRect, cv);
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 150));

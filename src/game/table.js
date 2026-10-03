@@ -44,6 +44,7 @@ export class Table {
     this.uplink = { ball: null, t: 0, flash: 0, mode: null };
     this.spinners = { L: { a: 0, w: 0, n: 0 }, R: { a: 0, w: 0, n: 0 } };
     this.kickback = { lit: true, flash: 0 };
+    this.announced = {};        // secteurs dont l'accès a été annoncé (annonce au passage à « accessible »)
     this.loops = 0;
     this.sectors = {};
     for (const id of Object.keys(SECTORS)) this.sectors[id] = { done: false, attempts: 0, wins: 0, flash: 0, phaseKept: 0, kept: null };
@@ -257,6 +258,8 @@ export class Table {
     this._updateDrops(dt);
 
     if (this.combo.t > 0) { this.combo.t -= dt; if (this.combo.t <= 0) { this.combo.count = 0; this.combo.last = null; } }
+    // un secteur qui devient réellement accessible (fin de multibille, dernier secteur gagné…) est annoncé
+    if (!this.lockedOut) for (const id of ['hangar', 'reactor', 'defense', 'core']) if (!this.announced[id] && this.sectorState(id) === 'ready') this.sectorReady(id);
     if (this.orbitIn && this.time - this.orbitIn.t > RULES.loopWindow) this.orbitIn = null;
     if (this.multiball && this.ballsInPlay() <= 1 && this.anims.length === 0 && !this.uplink.ball) this.endMultiball();
     if (this.deferredT > 0) {
@@ -664,8 +667,20 @@ export class Table {
     return p > 0 ? 'prep' : 'locked';
   }
 
+  // Annonce d'accès à un secteur. En multibille, l'accès est qualifié mais en attente :
+  // l'annonce « accessible » viendra quand le secteur deviendra jouable.
   sectorReady(id) {
     const g = this.game, s = SECTORS[id];
+    const st = this.sectorState(id);
+    if (st === 'hold') {
+      this.sectors[id].flash = 2;
+      g.sfx('sectorReady');
+      g.banner(`${s.name} QUALIFIÉ`, 'Accès en attente : fin de la multibille', '#ffb52e', 1.8, 'banner');
+      g.say('hold');
+      return;
+    }
+    if (st !== 'ready' || this.announced[id]) return;
+    this.announced[id] = true;
     this.sectors[id].flash = 2;
     g.fx.sweep?.(s.color);
     g.sfx('sectorReady');
@@ -677,6 +692,7 @@ export class Table {
 
   onMinigameEnd(sector, success) {
     const s = this.sectors[sector];
+    this.announced[sector] = false;
     s.attempts++;
     if (success) { s.done = true; s.wins++; }
     if (sector === 'hangar') this.bankL = [false, false, false];
@@ -687,6 +703,7 @@ export class Table {
 
   // Après la victoire contre NULL : nouveau cycle, difficulté accrue.
   newCycle() {
+    this.announced = {};
     for (const id of Object.keys(this.sectors)) { this.sectors[id].done = false; this.sectors[id].phaseKept = 0; this.sectors[id].kept = null; }
     this.bankL = [false, false, false];
     this.deckTargets = [false, false, false, false];
@@ -1027,8 +1044,12 @@ export class Table {
     else if (pm === 'multiball') { out.portal.main = 'mode'; out.portal.color = '#ff3df2'; out.portal.label = 'MULTIBILLE'; out.portal.blink = 1; }
     else if (pm === 'super') { out.portal.main = 'jackpot'; out.portal.color = '#ffd84a'; out.portal.label = 'SUPER JACKPOT'; out.portal.blink = 1; }
     else if (this.sectorState('core') === 'hold') { out.portal.main = 'hold'; out.portal.color = '#ffb52e'; out.portal.label = 'EN ATTENTE'; out.portal.hold = true; }
-    // rampe du pont : invite à monter quand le réacteur se prépare sur le pont
-    if (!out.lramp.main && this.sectorState('reactor') === 'prep') { out.lramp.main = 'prep'; out.lramp.color = SECTORS.reactor.color; out.lramp.label = 'PONT'; }
+    // rampe du pont : invite à monter quand le réacteur se prépare ou attend sur le pont
+    const rs = this.sectorState('reactor');
+    if (!out.lramp.main && (rs === 'prep' || rs === 'ready')) {
+      out.lramp.main = rs === 'ready' ? 'mode' : 'prep'; out.lramp.color = SECTORS.reactor.color;
+      out.lramp.label = rs === 'ready' ? 'RÉACTEUR' : 'PONT'; out.lramp.blink = rs === 'ready' ? 1 : 0;
+    }
     for (const id of SHOT_IDS) {
       const l = out[id];
       if (!l.main && l.jackpot) { l.main = 'jackpot'; l.color = '#ffd84a'; l.label = 'JACKPOT'; l.blink = 1; }

@@ -174,21 +174,62 @@
     </div>
   </section>
 
-  <!-- Fin de partie -->
-  <section id="screen-over" class="screen hidden">
-    <div class="card over-card">
-      <h2>FIN DE SESSION</h2>
-      <div class="final-score" id="final-score">0</div>
-      <div id="final-rank" class="muted"></div>
-      <div id="final-stats" class="stats"></div>
-      <form id="name-form" class="name-form hidden" autocomplete="off">
-        <label>Vos initiales <input id="name-input" maxlength="3" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="OPR"></label>
-        <button class="btn primary" type="submit">Enregistrer</button>
-      </form>
-      <div class="menu">
-        <button class="btn primary" data-action="play">Rejouer</button>
-        <button class="btn" data-action="title">Menu</button>
+  <!-- Fin de partie : cinématique, rapport, initiales et tableau des scores (src/ui/gameover.js) -->
+  <section id="screen-over" class="screen go hidden" aria-label="Fin de session">
+    <div class="go-stage">
+      <div class="go-veil"></div>
+      <div class="go-flash"></div>
+      <div class="go-signal" aria-hidden="true">
+        <div class="go-sig glx" data-text="SIGNAL PERDU">SIGNAL PERDU</div>
+        <div class="go-sig2">Liaison noyau interrompue<span class="cd"> · code 0x4E554C4C</span></div>
+        <i class="go-tear"></i><i class="go-tear"></i><i class="go-tear"></i>
       </div>
+      <div class="go-status" aria-live="polite">
+        <div class="go-pw"><span>Alimentation du plateau</span><span class="go-bar"><i></i></span><b>100 %</b></div>
+        <div class="go-msg"></div>
+      </div>
+      <div class="go-wrap scrollable">
+        <header class="go-head">
+          <h2 class="go-title glx" data-text="FIN DE SESSION">FIN DE SESSION</h2>
+          <div class="go-sub">Station Cortex-9 · Rapport d'opération</div>
+        </header>
+        <div class="go-tabs" role="tablist"><button type="button" data-view="report">Rapport</button><button type="button" data-view="board">Classement</button></div>
+        <div class="go-body">
+          <div class="go-panel go-report">
+            <div class="go-lbl">Score final</div>
+            <div class="go-score" id="final-score" aria-live="polite"></div>
+            <ul class="go-stats" id="final-stats"></ul>
+            <div class="go-rank" id="final-rank" aria-live="polite"></div>
+          </div>
+          <div class="go-panel go-side">
+            <div class="go-entry">
+              <div class="go-lbl">Inscrivez vos initiales</div>
+              <div class="go-slots">
+                <button type="button" class="go-slot" aria-label="Initiale 1"></button>
+                <button type="button" class="go-slot" aria-label="Initiale 2"></button>
+                <button type="button" class="go-slot" aria-label="Initiale 3"></button>
+              </div>
+              <div class="go-keys">
+                <button type="button" class="go-key" data-key="prev" aria-label="Lettre précédente">◀</button>
+                <button type="button" class="go-key ok" data-key="ok">OK</button>
+                <button type="button" class="go-key" data-key="next" aria-label="Lettre suivante">▶</button>
+              </div>
+              <div class="go-hint"></div>
+            </div>
+            <div class="go-board">
+              <div class="go-lbl">Meilleurs scores</div>
+              <ol class="lb"></ol>
+              <i class="go-scan"></i>
+            </div>
+          </div>
+        </div>
+        <div class="go-menu">
+          <button class="btn primary" data-action="play">Rejouer</button>
+          <button class="btn" data-action="title">Menu</button>
+        </div>
+      </div>
+      <div class="go-skip"></div>
+      <div class="go-sparks" aria-hidden="true"></div>
     </div>
   </section>
 

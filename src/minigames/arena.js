@@ -76,6 +76,7 @@ export class FlipperArena extends Minigame {
     b.vy = -(1500 + 1500 * (this.autoRelaunch ? 0.92 : this.launchPower));
     this.shooterBall = null;
     this.plunger.kick = 1;
+    this.plunger.charge = 0;
     this.launchPower = 0.92;
     this.game.audio.stopCharge();
   }

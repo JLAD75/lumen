@@ -25,6 +25,9 @@ async function visit(p) {
   });
   if (/^\s*import\s/m.test(code)) throw new Error(`Import non pris en charge dans ${p}`);
   const exported = [];
+  // une seule déclaration par export (« export const a = 1, b = 2 » ne serait exporté qu'à moitié)
+  const multi = code.match(/^export\s+(const|let)\s+[A-Za-z_$][\w$]*\s*=[^;\n]*,\s*[A-Za-z_$][\w$]*\s*=/m);
+  if (multi) throw new Error(`Export à plusieurs déclarations non pris en charge dans ${p} : ${multi[0]}`);
   code = code.replace(/^export\s+(async\s+)?(function\*?|class|const|let)\s+([A-Za-z_$][\w$]*)/gm, (m, asy, kind, name) => {
     exported.push(name);
     return `${asy || ''}${kind} ${name}`;
@@ -55,7 +58,9 @@ const css = await read('style.css');
 html = html.replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${css}\n</style>`);
 html = html.replace('<script type="module" src="src/main.js"></script>', () => `<script>\n${bundle}</script>`);
 await mkdir(ROOT + 'dist', { recursive: true });
-await writeFile(ROOT + 'dist/lumen-null.html', html, 'utf8');
+// dist/lumen-null.html est à côté de assets/ : les musiques se chargent depuis ../assets/
+const distHtml = html.replace('<script>\n(function () {', () => '<script>window.LN_ASSET_BASE = \'../\';</script>\n<script>\n(function () {');
+await writeFile(ROOT + 'dist/lumen-null.html', distHtml, 'utf8');
 console.log(`dist/lumen-null.html généré : ${order.length} modules, ${(html.length / 1024).toFixed(0)} Ko`);
 
 // Variante « fragment » (sans doctype/html/head/body) pour un hébergement qui fournit

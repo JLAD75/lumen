@@ -13,6 +13,12 @@ import { Scores } from '../util/storage.js';
 
 const MINIGAMES = { hangar: BreakoutGame, reactor: ReactorGame, defense: DefenseGame, core: DuelGame };
 
+// Statistiques de la partie (rapport de fin de session)
+const newStats = () => ({
+  minigamesWon: 0, minigamesPlayed: 0, bossWins: 0,
+  jackpots: 0, superJackpots: 0, multiballs: 0, bestCombo: 0, skillShots: 0, missions: 0, extraBalls: 0, time: 0,
+});
+
 // Orchestrateur : états de partie, scènes (plateau / transition / minijeu),
 // score, réserve de billes commune, bonus, missions et IA.
 export class Game {
@@ -44,7 +50,7 @@ export class Game {
     this.slowT = 0;
     this.lastInput = null;
     this.scores = new Scores();
-    this.stats = { minigamesWon: 0, minigamesPlayed: 0, bossWins: 0 };
+    this.stats = newStats();
     this.ledgerErrors = 0;
     this.timers = [];
   }
@@ -70,7 +76,7 @@ export class Game {
     this.betweenBalls = 0;
     this.timers = [];
     this.camera = { x: TABLE_W / 2, y: TABLE_H / 2, zoom: 1 };
-    this.stats = { minigamesWon: 0, minigamesPlayed: 0, bossWins: 0 };
+    this.stats = newStats();
     this.state = 'play';
     this.applyDifficulty();
     this.table.serveBall();
@@ -78,8 +84,8 @@ export class Game {
     this.input.swallow();
     this.music.setMode('table');
     this.music.setFlag('multiball', false);
+    this.ui.onGameStart();          // l'afficheur passe en mode jeu avant la première réplique
     this.say('gameStart');
-    this.ui.onGameStart();
   }
 
   pause() {
@@ -138,6 +144,7 @@ export class Game {
       if (tm.t <= 0) { this.timers.splice(i, 1); tm.fn(); }
     }
     if (this.state !== 'play') return;
+    this.stats.time += dt;
     this.bonus.paused = this.scene !== 'table';
     this.bonus.update(dt);
     if (this.scene === 'table') {
@@ -223,6 +230,7 @@ export class Game {
 
   // Glitchs et impulsions néon du post-traitement, selon le type d'annonce.
   _screenFx(kind, d) {
+    this._tally(kind, d);
     const r = this.renderer;
     if (!r.pulse) return;
     switch (kind) {
@@ -239,6 +247,20 @@ export class Game {
       case 'gameOver': r.glitch(1, 0.6); break;
     }
   }
+  // Compteurs du rapport de fin de session (chaque annonce n'est émise qu'une fois).
+  _tally(kind, d) {
+    const s = this.stats;
+    switch (kind) {
+      case 'jackpot': s.jackpots++; break;
+      case 'superJackpot': s.superJackpots++; break;
+      case 'multiball': s.multiballs++; break;
+      case 'skillShot': s.skillShots++; break;
+      case 'missionDone': s.missions++; break;
+      case 'extraBall': s.extraBalls++; break;
+      case 'combo': s.bestCombo = Math.max(s.bestCombo, d.n || 0); break;
+    }
+  }
+
   onLumenMessage(msg) {
     this.ui.lumen(msg);
     if (msg && msg.persona === 'null' && this.renderer.glitch) this.renderer.glitch(0.5, 0.3);
@@ -349,7 +371,8 @@ export class Game {
         const out = this.bonus.grant(r.type, r);
         msgs.push(out.title);
       }
-      const why = result.drained ? 'Noyau retombé — retour au plateau' : 'Temps écoulé';
+      const WHY = { timeout: 'Temps écoulé', hull: 'Coque détruite', overload: 'Surcharge du réacteur' };
+      const why = result.drained ? 'Noyau retombé — retour au plateau' : (WHY[result.reason] || 'Échec');
       this.banner(`${S.name} : ÉCHEC`, msgs.length ? why + ' · ' + msgs.join(' · ') : why + ' · progression conservée', '#ff7a7a', 2.4, 'minigameFail');
       this.say(sector === 'core' ? 'null_win' : result.drained ? 'mgDrained' : 'mgFail');
     }
@@ -424,8 +447,9 @@ export class Game {
     this.sfx('gameOver');
     this.dmd('gameOver', { score: this.score });
     const rank = this.scores.rank(this.score);
-    if (rank === 0 && this.score > 0) this.say('highScore'); else this.say('gameOver');
-    this.ui.showGameOver({ score: this.score, rank, level: this.level, stats: this.stats, sectors: this.table.sectors });
+    // le record est annoncé par LUMEN au moment de sa révélation (séquence de fin, ui)
+    this.say('gameOver');
+    this.ui.showGameOver({ score: this.score, rank, level: this.level, stats: this.stats, sectors: this.table.sectors, best: this.scores.best });
   }
 
   // ------------------------------------------------------------ rendu
