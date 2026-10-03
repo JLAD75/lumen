@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#04050c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="LUMEN//NULL — flipper orbital : réactivez la station Cortex-9 et affrontez l'IA corrompue NULL.">
+  <title>LUMEN//NULL</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2304050c'/%3E%3Ccircle cx='32' cy='32' r='14' fill='%2329e3ff'/%3E%3Ccircle cx='27' cy='27' r='5' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="Plateau de flipper"></canvas>
+  <div id="touch-layer" aria-hidden="true"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hud-top">
+      <div class="hud-score"><span id="score">0</span><small id="hiscore">Record 0</small></div>
+      <div class="hud-mid">
+        <div id="balls" class="balls" aria-label="Billes restantes"></div>
+        <div id="mult" class="mult"></div>
+      </div>
+      <button id="btn-pause" class="icon-btn" aria-label="Pause">❚❚</button>
+    </div>
+    <div id="lumen-bar" class="lumen-bar"><span class="lumen-eye"></span><span id="lumen-text"></span></div>
+    <div id="mg-bar" class="mg-bar hidden">
+      <div class="mg-head"><span id="mg-title"></span><span id="mg-progress"></span><span id="mg-time"></span></div>
+      <div class="mg-timer"><div id="mg-timer-fill"></div></div>
+      <div id="mg-perk" class="mg-perk"></div>
+    </div>
+    <aside id="panel-left" class="panel">
+      <h3>Secteurs de la station</h3>
+      <ul id="sectors" class="sectors"></ul>
+      <h3>Mission</h3>
+      <div id="mission" class="mission">—</div>
+      <h3>Effets actifs</h3>
+      <ul id="effects" class="effects"></ul>
+    </aside>
+    <aside id="panel-right" class="panel">
+      <div class="big-score"><small>Score</small><span id="score2">0</span></div>
+      <div class="row"><small>Billes</small><span id="balls2" class="balls"></span></div>
+      <div class="row"><small>Multiplicateur</small><span id="mult2">×1</span></div>
+      <div class="row"><small>Bonus</small><span id="bonusx">×1</span></div>
+      <div class="row"><small>Niveau de sécurité</small><span id="level">1</span></div>
+      <h3>Journal de LUMEN</h3>
+      <ul id="lumen-log" class="lumen-log"></ul>
+      <h3>Commandes</h3>
+      <p class="keys"><kbd>←</kbd>/<kbd>A</kbd> batteur gauche · <kbd>→</kbd>/<kbd>D</kbd> batteur droit<br><kbd>Espace</kbd> charger et lancer · <kbd>Échap</kbd> pause</p>
+      <p class="keys touch-keys">Moitié gauche / droite de l'écran : batteurs (simultanés) · bouton LANCER : maintenir puis relâcher · ❚❚ : pause</p>
+    </aside>
+    <div id="hud-bottom">
+      <div id="mission-chip" class="chip"></div>
+      <div id="effects-chips" class="chips"></div>
+    </div>
+  </div>
+
+  <button id="btn-launch" class="launch hidden" aria-label="Lancer la bille"><span class="ring"></span><span class="lbl">LANCER</span></button>
+  <div id="zone-hints" class="zone-hints hidden" aria-hidden="true"><div class="zl">◀ batteur gauche</div><div class="zr">batteur droit ▶</div></div>
+  <div id="banner" class="banner" aria-live="polite"></div>
+  <div id="tally" class="tally hidden"></div>
+
+  <!-- Écran d'accueil -->
+  <section id="screen-title" class="screen">
+    <div class="card title-card">
+      <div class="logo" data-text="LUMEN//NULL">LUMEN//NULL</div>
+      <div class="subtitle">Flipper orbital · Station Cortex-9</div>
+      <p class="pitch">La station est pilotée par LUMEN. Un sous-programme corrompu, NULL, a pris trois secteurs. Votre noyau d'énergie va les réactiver un par un.</p>
+      <div class="menu">
+        <button class="btn primary" data-action="play">Jouer</button>
+        <button class="btn" data-action="help">Commandes &amp; règles</button>
+        <button class="btn" data-action="settings">Réglages</button>
+        <button class="btn ghost" data-action="fullscreen" id="btn-fs">Plein écran</button>
+      </div>
+      <div class="scores-box"><h3>Meilleurs scores</h3><ol id="hiscores"></ol></div>
+      <p class="hint">Entrée / toucher « Jouer » · le son démarre à la première interaction</p>
+    </div>
+  </section>
+
+  <!-- Aide -->
+  <section id="screen-help" class="screen hidden">
+    <div class="card help-card scrollable">
+      <h2>Commandes</h2>
+      <div class="cols">
+        <div>
+          <h4>Ordinateur</h4>
+          <ul>
+            <li><kbd>←</kbd> ou <kbd>A</kbd> : batteur gauche / déplacement à gauche</li>
+            <li><kbd>→</kbd> ou <kbd>D</kbd> : batteur droit / déplacement à droite</li>
+            <li><kbd>Espace</kbd> : maintenir pour charger, relâcher pour lancer</li>
+            <li><kbd>Échap</kbd> : pause</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Smartphone</h4>
+          <ul>
+            <li>Moitié gauche de l'écran : batteur gauche</li>
+            <li>Moitié droite : batteur droit (les deux en même temps)</li>
+            <li>Bouton <b>LANCER</b> en bas à droite : maintenir puis relâcher</li>
+            <li>Bouton ❚❚ : pause</li>
+          </ul>
+        </div>
+      </div>
+      <h2>Règles essentielles</h2>
+      <ul class="rules">
+        <li><b>3 billes</b> pour toute la partie, minijeux compris. Perdre la bille dans un minijeu consomme une bille de la réserve. Relancez ensuite avec la commande de lancement : la progression du minijeu est conservée.</li>
+        <li><b>Accès aux secteurs</b> :
+          <span class="tag c1">HANGAR</span> 3 cibles gauches, puis la rampe gauche → Casse-briques ·
+          <span class="tag c2">RÉACTEUR</span> 2 boucles, puis le portail central → Réacteur instable ·
+          <span class="tag c3">DÉFENSE</span> 3 cibles droites, puis la rampe droite → Défense ·
+          <span class="tag c4">NOYAU</span> les 3 secteurs réactivés, puis le portail → Duel contre NULL.</li>
+        <li>Les lampes hexagonales indiquent l'état de chaque secteur : verrouillé, en préparation (barre), accessible (clignote), en attente ⧗ (multibille en cours) ou terminé ✓.</li>
+        <li><b>C·P·U</b> : allumez les 3 couloirs du haut (les batteurs décalent les lumières). Bonus ×+1. Deux C·P·U allument la <b>multibille</b> au portail.</li>
+        <li><b>Combos</b> : enchaînez des tirs majeurs différents en moins de 4 s. Les flèches à chevrons blancs indiquent les tirs qui prolongent le combo.</li>
+        <li>Pendant une multibille, les accès aux minijeux sont <b>mis en attente</b>. Ils restent débloqués.</li>
+      </ul>
+      <h2>Bonus et cumul</h2>
+      <ul class="rules small">
+        <li><b>Bouclier</b> : 1 charge maximum. Un bouclier gagné en plus donne 20 s de sauvegarde.</li>
+        <li><b>Noyau phasique</b> : 25 s, traverse les cibles en les validant. Un nouveau gain relance la durée, sans cumul.</li>
+        <li><b>Multiplicateur</b> : ×2 puis ×3, ×4 au maximum. Durée de 30 s, relancée à chaque gain.</li>
+        <li><b>Jackpot de rampe</b> : 40 s, valeur +50 % par gain (3 paliers au maximum).</li>
+        <li><b>Aimant</b> : 30 s, rattrape la bille dans les couloirs extérieurs.</li>
+        <li><b>Bumpers</b> : niveau 5 au maximum. <b>Multibille différée</b> : 2 billes de plus au maximum.</li>
+        <li>La récompense complète d'un secteur n'est accordée qu'une fois par cycle. Battre NULL relance le cycle avec une difficulté accrue.</li>
+      </ul>
+      <button class="btn primary" data-action="back">Compris</button>
+    </div>
+  </section>
+
+  <!-- Réglages -->
+  <section id="screen-settings" class="screen hidden">
+    <div class="card settings-card scrollable">
+      <h2>Réglages</h2>
+      <label class="slider">Musique <input type="range" min="0" max="1" step="0.05" data-set="music"></label>
+      <label class="slider">Effets sonores <input type="range" min="0" max="1" step="0.05" data-set="sfx"></label>
+      <label class="slider">Voix de l'IA <input type="range" min="0" max="1" step="0.05" data-set="voice"></label>
+      <label class="toggle"><input type="checkbox" data-set="muted"> Mode muet</label>
+      <label class="toggle"><input type="checkbox" data-set="reducedFx"> Réduire les effets visuels</label>
+      <label class="toggle"><input type="checkbox" data-set="reducedMotion"> Réduire les mouvements (secousses, zooms)</label>
+      <label class="toggle"><input type="checkbox" data-set="haptics"> Vibrations (mobile)</label>
+      <label class="toggle"><input type="checkbox" data-set="showZones"> Afficher les zones tactiles au lancement</label>
+      <button class="btn primary" data-action="back">Retour</button>
+    </div>
+  </section>
+
+  <!-- Pause -->
+  <section id="screen-pause" class="screen hidden">
+    <div class="card pause-card">
+      <h2>PAUSE</h2>
+      <p class="muted">La partie est figée. Les commandes ont été relâchées.</p>
+      <div class="menu">
+        <button class="btn primary" data-action="resume">Reprendre</button>
+        <button class="btn" data-action="settings">Réglages</button>
+        <button class="btn" data-action="help">Commandes &amp; règles</button>
+        <button class="btn ghost" data-action="quit">Quitter la partie</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fin de partie -->
+  <section id="screen-over" class="screen hidden">
+    <div class="card over-card">
+      <h2>FIN DE SESSION</h2>
+      <div class="final-score" id="final-score">0</div>
+      <div id="final-rank" class="muted"></div>
+      <div id="final-stats" class="stats"></div>
+      <form id="name-form" class="name-form hidden" autocomplete="off">
+        <label>Vos initiales <input id="name-input" maxlength="3" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="OPR"></label>
+        <button class="btn primary" type="submit">Enregistrer</button>
+      </form>
+      <div class="menu">
+        <button class="btn primary" data-action="play">Rejouer</button>
+        <button class="btn" data-action="title">Menu</button>
+      </div>
+    </div>
+  </section>
+
+  <noscript><p class="noscript">Ce jeu nécessite JavaScript.</p></noscript>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

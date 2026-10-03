@@ -1,0 +1,13 @@
+{
+  "name": "lumen-null",
+  "version": "1.0.0",
+  "description": "LUMEN//NULL — flipper orbital (navigateur, mobile et grand écran)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tools/sim-tests.js",
+    "build": "node tools/build-single.js"
+  },
+  "license": "MIT"
+}

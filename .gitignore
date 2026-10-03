@@ -1,0 +1,12 @@
+# Dépendances et journaux (le projet n'a aucune dépendance, par précaution)
+node_modules/
+*.log
+
+# Fichiers système et éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Réglages locaux de Claude Code (launch.json reste partagé)
+.claude/settings.local.json
