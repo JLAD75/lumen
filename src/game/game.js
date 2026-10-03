@@ -217,9 +217,31 @@ export class Game {
 
   sfx(name, ...args) { this.audio.sfx(name, ...args); }
   say(key, params) { this.lumen.say(key, params); }
-  banner(title, sub, color, dur) { this.ui.banner(title, sub, color, dur); }
+  // Annonce : afficheur à points (animation selon kind) + bannière à côté du plateau.
+  banner(title, sub, color, dur, kind, data) { this.ui.banner(title, sub, color, dur, kind, data); this._screenFx(kind, { color, ...(data || {}) }); }
+  dmd(kind, data) { if (this.ui.dmd) this.ui.dmd.show(kind, data); this._screenFx(kind, data || {}); }
+
+  // Glitchs et impulsions néon du post-traitement, selon le type d'annonce.
+  _screenFx(kind, d) {
+    const r = this.renderer;
+    if (!r.pulse) return;
+    switch (kind) {
+      case 'jackpot': r.pulse('#ffd84a', 1); break;
+      case 'superJackpot': r.pulse('#ffd84a', 1.4); r.glitch(0.3, 0.2); break;
+      case 'multiball': r.pulse('#ff3df2', 1); break;
+      case 'extraBall': r.pulse('#5dff8f', 1); break;
+      case 'sectorReady': case 'minigameWin': r.pulse(d.color || '#29e3ff', 0.9); break;
+      case 'skillShot': r.pulse('#29e3ff', 0.7); break;
+      case 'combo': if (d.n >= 4) r.pulse('#ffffff', 0.35); break;
+      case 'minigameFail': r.glitch(0.5, 0.3); break;
+      case 'ballLost': r.glitch(0.8, 0.4); break;
+      case 'levelUp': r.pulse('#ff3d6e', 1.2); r.glitch(0.4, 0.3); break;
+      case 'gameOver': r.glitch(1, 0.6); break;
+    }
+  }
   onLumenMessage(msg) {
     this.ui.lumen(msg);
+    if (msg && msg.persona === 'null' && this.renderer.glitch) this.renderer.glitch(0.5, 0.3);
     if (msg) this.audio.speak(msg.text, msg.persona);
   }
 
@@ -240,6 +262,7 @@ export class Game {
     }
     this.ballsLeft++;
     this.extraBallsThisLevel++;
+    this.dmd('extraBall');
     this.sfx('extraBall');
     this.say('extraBall');
     this.ui.flashBalls();
@@ -254,8 +277,10 @@ export class Game {
 
   startMinigame(sector, ball, x, y) {
     const Cls = MINIGAMES[sector];
-    const mg = new Cls(this, { level: this.level, sector, phaseKept: this.table.sectors[sector].phaseKept || 0 });
+    const S = this.table.sectors[sector];
+    const mg = new Cls(this, { level: this.level, sector, kept: S.kept || null, phaseKept: S.phaseKept || 0 });
     this.stats.minigamesPlayed++;
+    if (this.renderer.glitch) this.renderer.glitch(0.9, 0.45);
     this.scene = 'transition';
     this.transition = new Transition(this, 'enter', { ball, from: { x, y }, minigame: mg, sector });
   }
@@ -278,6 +303,8 @@ export class Game {
     if (!mg || this.scene !== 'minigame') return;
     const sector = mg.sector;
     this.table.onMinigameEnd(sector, result.success);
+    // progression conservée pour la prochaine tentative (effacée en cas de réussite)
+    this.table.sectors[sector].kept = result.success ? null : (result.kept || null);
     if (sector === 'core' && !result.success) this.table.sectors.core.phaseKept = result.phaseKept || 0;
     if (result.success) this.stats.minigamesWon++;
     this.scene = 'transition';
@@ -291,7 +318,7 @@ export class Game {
     this.transition = null;
     this.scene = 'table';
     this.music.setMode('table');
-    if (pending || !ball) this.table.serveBall();       // la bille de remplacement attend au lanceur
+    if (pending || !ball) this.table.serveBall({ ball, noSave: false }); // la bille attend au lanceur
     else this.table.receiveBall(ball);
     this.input.swallow();
     this._applyRewards(mg, result);
@@ -315,15 +342,16 @@ export class Game {
         this.say('mgSuccess', { pct: Math.min(100, pct) });
         if (this.table.sectorState('core') === 'ready') this.later(2.6, () => this.table.sectorReady('core'));
       }
-      this.banner(`${S.name} RÉACTIVÉ`, msgs.join(' · '), S.color, 2.8);
+      this.banner(`${S.name} RÉACTIVÉ`, msgs.join(' · '), S.color, 2.8, 'minigameWin');
       this.sfx('reward');
     } else {
       for (const r of result.partialRewards || []) {
         const out = this.bonus.grant(r.type, r);
         msgs.push(out.title);
       }
-      this.banner(`${S.name} : ÉCHEC`, msgs.length ? 'Prime partielle : ' + msgs.join(' · ') : 'Requalifiez le secteur pour réessayer', '#ff7a7a', 2.4);
-      this.say(sector === 'core' ? 'null_win' : 'mgFail');
+      const why = result.drained ? 'Noyau retombé — retour au plateau' : 'Temps écoulé';
+      this.banner(`${S.name} : ÉCHEC`, msgs.length ? why + ' · ' + msgs.join(' · ') : why + ' · progression conservée', '#ff7a7a', 2.4, 'minigameFail');
+      this.say(sector === 'core' ? 'null_win' : result.drained ? 'mgDrained' : 'mgFail');
     }
   }
 
@@ -342,32 +370,24 @@ export class Game {
     this.table.newCycle();
     this.applyDifficulty();
     this.say('levelUp', { lvl: this.level });
+    this.dmd('levelUp', { lvl: this.level });
     this.later(3, () => this.banner(`NIVEAU DE SÉCURITÉ ${this.level}`, 'Les secteurs se reverrouillent — difficulté accrue', '#ff3d6e', 2.6));
   }
 
-  // Perte de la bille du minijeu : consomme une bille de la réserve commune.
-  ballLostInMinigame() {
+  // La bille tombe dans un minijeu : aucune bille de la réserve n'est consommée.
+  // Bouclier disponible = relance automatique de la même bille ; sinon le minijeu
+  // échoue et la bille revient sur le plateau principal (progression conservée).
+  ballLostInMinigame(ball) {
     const mg = this.minigame;
     if (this.bonus.useShield()) {
       this.sfx('shield');
-      this.banner('BOUCLIER', 'Perte annulée — relance automatique', '#7fd7ff', 1.5);
+      this.banner('BOUCLIER', 'Chute annulée — relance automatique', '#7fd7ff', 1.5, 'shield');
       this.say('shieldUsed');
-      mg.awaitRelaunch(new Ball(), { auto: true });
+      mg.awaitRelaunch(ball || new Ball(), { auto: true });
       return;
     }
-    this.ballsLeft--;
-    this.sfx('ballLost');
-    this.ui.flashBalls();
-    const bonus = this.table.endOfBallBonus();
-    if (bonus.total > 0) { this.score += bonus.total; this.banner('BONUS DE BILLE', `+${bonus.total.toLocaleString('fr-FR')}`, '#29e3ff', 1.4); }
-    this.table.resetBallStats();
-    if (this.ballsLeft > 0) {
-      this.say('mgBallLost');
-      mg.awaitRelaunch(new Ball(), { auto: false });
-    } else {
-      mg.abort();
-      this.gameOver();
-    }
+    this.sfx('drainMulti');
+    mg.finish(false, 'drain', ball || new Ball());
   }
 
   // Perte de la dernière bille sur le plateau.
@@ -379,6 +399,7 @@ export class Game {
     const bonus = t.endOfBallBonus();
     this.score += bonus.total;
     this.ballsLeft--;
+    this.dmd('ballLost', { bonus: bonus.total });
     this.ui.flashBalls();
     this.ui.tally(bonus, this.ballsLeft > 0);
     if (this.ballsLeft > 0) {
@@ -401,6 +422,7 @@ export class Game {
     this.input.releaseAll();
     this.music.setMode('gameover');
     this.sfx('gameOver');
+    this.dmd('gameOver', { score: this.score });
     const rank = this.scores.rank(this.score);
     if (rank === 0 && this.score > 0) this.say('highScore'); else this.say('gameOver');
     this.ui.showGameOver({ score: this.score, rank, level: this.level, stats: this.stats, sectors: this.table.sectors });

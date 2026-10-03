@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS = {
   reducedMotion: false,
   haptics: true,
   showZones: true,
+  tilt: true,
 };
 
 export function loadSettings() {

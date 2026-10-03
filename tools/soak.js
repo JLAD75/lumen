@@ -8,7 +8,7 @@ const GAMES = Number(process.argv[2] || 6);
 const SECONDS = Number(process.argv[3] || 600);
 const DT = 1 / 120;
 const noop = () => {};
-const fx = { spark: noop, burst: noop, ring: noop, text: noop, flash: noop, shake: noop, drain: noop, update: noop };
+const fx = { spark: noop, burst: noop, ring: noop, text: noop, flash: noop, shake: noop, drain: noop, arc: noop, sweep: noop, update: noop };
 const music = { setMode: noop, setIntensity: noop, setTension: noop, setFlag: noop, bump: noop, currentChord: () => [220, 262, 330] };
 const audio = { music, sfx: noop, impact: noop, speak: noop, setPaused: noop, chargeLevel: noop, stopCharge: noop };
 const ui = { banner: noop, lumen: noop, tally: noop, flashBalls: noop, onGameStart: noop, showPause: noop, showTitle: noop, showGameOver: noop };

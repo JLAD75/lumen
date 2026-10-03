@@ -8,7 +8,8 @@ import { Game } from './game/game.js';
 // Point d'entrée : assemble entrées, rendu, audio, interface et logique de jeu.
 const settings = loadSettings();
 const canvas = document.getElementById('game');
-const renderer = new Renderer(canvas, settings);
+const renderer = new Renderer(canvas, settings, document.getElementById('bg'), document.getElementById('fx'));
+document.getElementById('app').classList.toggle('rfx', !!settings.reducedFx);
 const audio = new AudioEngine(settings);
 const input = new Input();
 input.haptics = settings.haptics;
@@ -36,8 +37,8 @@ const ui = new UI(settings, {
   settingsChanged: (k) => {
     audio.applyVolumes();
     input.haptics = settings.haptics;
-    if (k === 'reducedFx') renderer.layers.clear();
-    if (k === 'reducedMotion') onResize();   // la caméra de suivi dépend de ce réglage
+    if (k === 'reducedFx') { renderer.layers.clear(); document.getElementById('app').classList.toggle('rfx', !!settings.reducedFx); }
+    if (k === 'reducedMotion' || k === 'tilt') onResize();   // caméra de suivi et vue inclinée
   },
   saveScore: (name) => { game.scores.add(name, game.score, game.level); save('lastName', name); ui.renderHiscores(); },
   scores: () => game.scores,
@@ -54,6 +55,7 @@ ui.back = () => {
 };
 
 game = new Game({ renderer, audio, input, ui, settings });
+ui.bounds = { ...game.table.bounds };   // plateau long : le monde commence au-dessus de y = 0
 
 input.attach(document.getElementById('touch-layer'), document.getElementById('btn-launch'));
 input.onAnyInput = () => audio.unlock();
@@ -86,7 +88,13 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && gam
 // Mise en page adaptative (sans déformer la physique : échelle uniforme).
 function onResize() {
   const view = ui.layout();
-  renderer.resize(window.innerWidth, window.innerHeight, view);
+  const cv = ui.canvasRect;
+  canvas.style.left = cv.left + 'px';
+  canvas.style.top = cv.top + 'px';
+  canvas.style.transform = cv.transform;
+  canvas.style.transformOrigin = cv.origin;
+  renderer.resize(cv.width, cv.height, view);
+  renderer.resizeBackdrop(window.innerWidth, window.innerHeight, ui.screenRect);
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 150));

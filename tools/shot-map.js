@@ -6,7 +6,7 @@ import { Game } from '../src/game/game.js';
 import { L } from '../src/game/tableLayout.js';
 
 const noop = () => {};
-const fx = { spark: noop, burst: noop, ring: noop, text: noop, flash: noop, shake: noop, drain: noop, update: noop };
+const fx = { spark: noop, burst: noop, ring: noop, text: noop, flash: noop, shake: noop, drain: noop, arc: noop, sweep: noop, update: noop };
 const music = { setMode: noop, setIntensity: noop, setTension: noop, setFlag: noop, bump: noop, currentChord: () => [220, 262, 330] };
 const audio = { music, sfx: noop, impact: noop, speak: noop, setPaused: noop, chargeLevel: noop, stopCharge: noop };
 const ui = { banner: noop, lumen: noop, tally: noop, flashBalls: noop, onGameStart: noop, showPause: noop, showTitle: noop, showGameOver: noop };
@@ -24,10 +24,12 @@ function trial(side, delay, mode = 'cradle', param = 0) {
   g.bonus.saveT = 99;
   let ev = null;
   const hook = (name, fn) => { const o = t[name].bind(t); t[name] = (...a) => { const r = fn(...a); if (!ev && r) ev = r; return o(...a); }; };
-  hook('onRampExit', (s, d) => d < 0 && `RAMPE ${s}`);
+  hook('onDeckRamp', () => 'PONT (rampe G)');
+  hook('onRampExit', (s, d) => d < 0 && 'RAMPE D');
   hook('onOrbitTop', (s) => t.orbitIn && t.orbitIn.side === s && !t.orbitIn.made && `BOUCLE ${s}`);
   hook('onShutter', (b2, imp) => imp >= 250 && 'PORTAIL');
-  hook('onTarget', (s) => `CIBLE ${s}`);
+  hook('onTarget', () => 'CIBLE G');
+  hook('onDrop', () => 'TOMBANTE D');
   hook('onLane', (i) => `COULOIR ${'CPU'[i]}`);
   hook('onBumper', () => 'BUMPER');
   const key = side === 'L' ? 'left' : 'right';

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>LUMEN//NULL — banc d'essai FX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; height: 100%; background: #04050c; overflow: hidden; color: #d8e8ff; font-family: "Rajdhani", "Segoe UI", sans-serif; }
+    canvas { position: fixed; inset: 0; display: block; }
+    .panel { position: fixed; top: 12px; bottom: 12px; display: none; padding: 12px 14px; box-sizing: border-box;
+      background: rgba(10,16,32,0.78); border: 1px solid rgba(41,227,255,0.28); border-radius: 14px;
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-size: 14px; }
+    .panel h3 { font-family: "Orbitron", sans-serif; font-size: 11px; letter-spacing: 1.5px; color: #7f93b8; margin: 0 0 8px; }
+    .panel b { font-family: "Orbitron", sans-serif; font-size: 26px; color: #fff; }
+    #ui { position: fixed; left: 8px; bottom: 8px; z-index: 5; max-width: min(560px, calc(100vw - 16px)); background: rgba(6,8,18,0.86);
+      border: 1px solid rgba(41,227,255,0.3); border-radius: 10px; padding: 8px; font-size: 13px; }
+    #ui.min .body { display: none; }
+    #ui button { font: 600 12px "Rajdhani", sans-serif; color: #cfe; background: #101a30; border: 1px solid rgba(41,227,255,0.35);
+      border-radius: 6px; padding: 4px 8px; margin: 2px; cursor: pointer; }
+    #ui button.on { background: #29e3ff; color: #04050c; }
+    #ui .row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+    #ui label { margin: 0 6px; }
+    #stats, #bench { font: 12px/1.35 Consolas, monospace; white-space: pre; color: #9fe; margin-top: 4px; }
+    #toggle { float: right; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<aside id="pl" class="panel"><h3>SECTEURS DE LA STATION</h3>HANGAR · RÉACTEUR · DÉFENSE · NOYAU<h3 style="margin-top:14px">MISSION</h3>Réactiver la rampe orbitale</aside>
+<aside id="pr" class="panel"><h3>SCORE</h3><b>1 234 560</b><h3 style="margin-top:14px">JOURNAL DE LUMEN</h3>Bouclier chargé. Multibille prête.</aside>
+<div id="ui">
+  <button id="toggle">–</button>
+  <div class="body">
+    <div class="row">
+      <button data-a="glitch">Glitch</button><button data-a="glitch2">Gros glitch</button>
+      <button data-a="pulse-c">Pulse cyan</button><button data-a="pulse-g">Pulse or</button><button data-a="pulse-m">Pulse magenta</button>
+    </div>
+    <div class="row">
+      Humeur : <button data-m="calm" class="on">calm</button><button data-m="hot">hot</button><button data-m="null">null</button>
+      <label>intensité <input id="inten" type="range" min="0" max="1" step="0.05" value="0.3"></label>
+    </div>
+    <div class="row">
+      <button data-s="reducedFx">reducedFx</button><button data-s="reducedMotion">reducedMotion</button>
+      <button data-t="post" class="on">PostFX</button><button data-t="back" class="on">Backdrop</button><button data-t="panels">Panneaux HUD</button>
+      Qualité : <button data-q="auto" class="on">auto</button><button data-q="0">0</button><button data-q="1">1</button><button data-q="2">2</button>
+    </div>
+    <div class="row"><button data-a="bench">Mesurer (bench)</button><button data-a="level">Niveau +1</button></div>
+    <div id="stats"></div>
+    <div id="bench"></div>
+  </div>
+</div>
+<script type="module" src="./fx-demo.js"></script>
+</body>
+</html>

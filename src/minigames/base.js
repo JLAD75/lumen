@@ -2,12 +2,14 @@ import { PhysicsWorld } from '../physics/world.js';
 import { SECTORS, RULES } from '../config.js';
 import { clamp, rand, sign } from '../util/math.js';
 
-// Base commune des minijeux : même bille, mêmes commandes, chrono maîtrisé,
-// perte = une bille de la réserve commune, relance par la commande de lancement.
+// Base commune des minijeux : même bille, mêmes commandes, chrono maîtrisé.
+// Bille perdue = fin du minijeu (échec) et retour au plateau principal, sans perte
+// de bille ; la progression (opts.kept) est rendue au minijeu suivant du même secteur.
 export class Minigame {
   constructor(game, opts, cfg) {
     this.game = game;
     this.level = opts.level || 1;
+    this.kept = opts.kept || null;  // progression conservée d'une tentative précédente
     this.sector = opts.sector;
     this.S = SECTORS[this.sector];
     this.color = this.S.color;
@@ -59,7 +61,7 @@ export class Minigame {
     this.setBarrier(5);
     this.applyPerk();
     // effets compatibles conservés : le noyau phasique devient perforation
-    this.game.banner(this.title, this.objective, this.color, 2.6);
+    this.game.banner(this.title, this.objective, this.color, 2.6, 'minigame', { force: true });
     if (this.perk) this.game.later(1.4, () => this.game.banner('AVANTAGE D\'ENTRÉE', this.perk.desc, this.color, 2.2));
     this.game.sfx('minigameStart', this.sector);
   }
@@ -95,17 +97,18 @@ export class Minigame {
         this.world.removeBall(b);
         if (b === this.ball) this.ball = null;
         this.game.fx.drain(b.x);
-        this.onBallLost();
+        this.onBallLost(b);
       }
     }
   }
 
   step(dt, inp) { this.world.step(dt); }
 
-  onBallLost() {
+  // La bille est tombée : le jeu décide (bouclier = relance, sinon fin du minijeu).
+  onBallLost(ball) {
     if (this.state !== 'play') return;
     this.resetCombos();
-    this.game.ballLostInMinigame();
+    this.game.ballLostInMinigame(ball);
   }
 
   resetCombos() {}
@@ -138,21 +141,29 @@ export class Minigame {
 
   onTimeout() { this.finish(false, 'timeout'); }
 
-  // Fin du minijeu (réussite ou échec à l'objectif) : retour au plateau.
-  finish(success, reason) {
+  // Fin du minijeu (réussite, échec à l'objectif ou bille tombée) : retour au plateau
+  // avec la même bille. drainedBall = bille sortie de l'arène par le bas.
+  finish(success, reason, drainedBall = null) {
     if (this.state === 'ended') return;
-    const pending = this.state === 'relaunch' || !this.ball;
+    const ball = drainedBall || this.ball || this.pendingBall || null;
+    const pending = !drainedBall && (this.state === 'relaunch' || !this.ball);
     this.state = 'ended';
     const res = this.results(success, reason);
     res.success = success;
-    res.ball = pending ? null : this.ball;
+    res.reason = reason;
+    res.ball = ball;
     res.pending = pending;
+    res.drained = !!drainedBall;
+    if (!success && res.kept === undefined) res.kept = this.keepProgress();
     if (success) this.game.sfx('minigameWin'); else this.game.sfx('minigameFail');
     this.game.fx.flash(success ? this.color : '#ff4060', 0.3);
     this.game.later(success ? 1.0 : 0.6, () => this.game.finishMinigame(res));
   }
 
   results() { return { rewards: [], points: this.points }; }
+
+  // Progression à conserver après un échec (rendue via opts.kept à la tentative suivante).
+  keepProgress() { return null; }
 
   abort() { this.state = 'ended'; }
 
@@ -167,7 +178,7 @@ export class Minigame {
   progressText() { return ''; }
 
   debugWin() { this.finish(true, 'debug'); }
-  debugLoseBall() { if (this.ball) this.ball.y = 1200; }
+  debugLoseBall() { if (this.ball) { this.ball.y = 1200; this.ball.vy = 500; } }
 
   render() {}
 }

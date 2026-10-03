@@ -1,6 +1,7 @@
 import { SECTORS, TABLE_W, TABLE_H } from '../config.js';
 import { fmt } from '../util/math.js';
 import { saveSettings, load, save } from '../util/storage.js';
+import { DMD } from './dmd.js';
 
 const $ = (s) => document.querySelector(s);
 const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', defense: '⛨', core: '☠' };
@@ -17,9 +18,9 @@ export class UI {
       score2: $('#score2'), lumenBar: $('#lumen-bar'), lumenText: $('#lumen-text'), lumenLog: $('#lumen-log'),
       mgBar: $('#mg-bar'), mgTitle: $('#mg-title'), mgProgress: $('#mg-progress'), mgTime: $('#mg-time'), mgFill: $('#mg-timer-fill'), mgPerk: $('#mg-perk'),
       panelL: $('#panel-left'), panelR: $('#panel-right'), sectors: $('#sectors'), mission: $('#mission'), effects: $('#effects'),
-      bottom: $('#hud-bottom'), missionChip: $('#mission-chip'), effectsChips: $('#effects-chips'),
+      bottom: $('#hud-bottom'), missionChip: $('#mission-chip'), effectsChips: $('#effects-chips'), goal: $('#goal'), goal2: $('#goal2'),
       launch: $('#btn-launch'), zones: $('#zone-hints'), banner: $('#banner'), tally: $('#tally'),
-      pauseBtn: $('#btn-pause'), hiscores: $('#hiscores'),
+      pauseBtn: $('#btn-pause'), hiscores: $('#hiscores'), dmd: $('#dmd'),
       screens: { title: $('#screen-title'), help: $('#screen-help'), settings: $('#screen-settings'), pause: $('#screen-pause'), over: $('#screen-over') },
     };
     this.cache = {};
@@ -29,7 +30,11 @@ export class UI {
     this.slowT = 0;
     this.touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
     this.el.app.classList.toggle('touch', this.touch);
+    // afficheur à points façon vrai flipper (score, événements, messages de LUMEN)
+    this.dmd = new DMD(this.el.dmd, settings);
+    this.el.hud.classList.add('dmd-on');
     this.view = { x: 0, y: 0, w: TABLE_W, h: TABLE_H, scale: 1 };
+    this.bounds = { x0: 0, y0: 0, w: TABLE_W, h: TABLE_H };
     this._bind();
     this._safeProbe();
   }
@@ -113,10 +118,13 @@ export class UI {
     this.el.hud.classList.add('hidden');
     this.el.launch.classList.add('hidden');
     this.renderHiscores();
+    this.dmd.setHiscores(this.h.scores().list);
+    this.dmd.setMode('attract');
     this.open('title');
   }
 
   onGameStart() {
+    this.dmd.setMode('play');
     this.hideScreens(); this.screenStack = [];
     this.h.menuOpen && this.h.menuOpen(false);
     this.el.hud.classList.remove('hidden');
@@ -156,73 +164,113 @@ export class UI {
   }
 
   // ------------------------------------------------------------ mise en page
+  // Vue inclinée (3D) : le plateau est dessiné à plat sur son canevas, puis basculé en CSS
+  // autour de son bord inférieur. Perspective proportionnelle à la taille du plateau :
+  // hauteur projetée = h·c, largeur du bord haut = w·k (formules fermées).
+  tiltParams(deg = 24) {
+    const PK = 1.6;
+    const th = deg * Math.PI / 180;
+    const k = 1 / (1 + Math.sin(th) / PK);
+    return { deg, PK, k, c: Math.cos(th) * k };
+  }
+
   layout() {
     const W = window.innerWidth, H = window.innerHeight;
     const S = this.safe();
-    const ratio = TABLE_W / TABLE_H;
+    const B = this.bounds;
+    const ratio = B.w / B.h;
     const e = this.el;
-    let view;
     const landscape = W / H > 0.82;
     const app = e.app;
     app.classList.toggle('landscape', landscape);
     app.classList.toggle('portrait', !landscape);
-    let panels = false;
-    if (landscape) {
-      let h = H - 16 - S.t - S.b, w = h * ratio;
-      if (w > W * 0.62) { w = W * 0.62; h = w / ratio; }
-      let x = (W - w) / 2, y = (H - h) / 2 + (S.t - S.b) / 2;
-      // petit écran en paysage (téléphone couché) : plateau agrandi + caméra de suivi verticale
-      let follow = false, scaleOverride = 0;
-      if (H < 560 && !this.settings.reducedMotion) {
-        follow = true;
-        scaleOverride = (h / TABLE_H) * 1.6;
-        w = TABLE_W * scaleOverride;
-        x = (W - w) / 2;
+    // petit écran en paysage (téléphone couché) : plateau agrandi + caméra de suivi, sans inclinaison
+    const follow = landscape && H < 560 && !this.settings.reducedMotion;
+    const tilt0 = this.settings.tilt !== false && !follow ? this.tiltParams(24) : null;
+    let tilt = tilt0;
+    // Si la largeur limite le plateau (portrait), on incline moins (jusqu'à 12°) pour occuper
+    // la hauteur disponible : le haut du plateau reste plus lisible.
+    const fit = (aw, ah) => {
+      tilt = tilt0;
+      if (tilt0) {
+        const hw = aw / ratio;
+        if (hw * tilt0.c < ah) {
+          let lo = 12, hi = 24;
+          for (let i = 0; i < 12; i++) { const m = (lo + hi) / 2; if (hw * this.tiltParams(m).c > ah) lo = m; else hi = m; }
+          tilt = this.tiltParams(hi);
+        }
       }
+      const c = tilt ? tilt.c : 1;
+      const h = Math.max(50, Math.min(ah / c, aw / ratio));
+      return { w: h * ratio, h, hp: h * c };
+    };
+    const dmdH = W < 360 ? 48 : 56;      // afficheur du bandeau supérieur (format 4:1)
+    let scr = null, panels = false, scaleOverride = 0;
+    if (landscape) {
+      let f = fit(W * 0.62, H - 16 - S.t - S.b);
+      let x = (W - f.w) / 2;
+      const y = (H - f.hp) / 2 + (S.t - S.b) / 2;
+      if (follow) { scaleOverride = (f.h / B.h) * 1.6; f = { ...f, w: B.w * scaleOverride }; x = (W - f.w) / 2; }
       const side = x - 14;
       if (side >= 170) {
         panels = true;
-        view = { x, y, w, h, follow, scaleOverride };
+        scr = { x, y, w: f.w, h: f.hp, flatH: f.h };
         const pw = Math.min(330, side - 6);
         e.panelL.classList.toggle('compact', pw < 270 || H < 560);
         e.panelR.classList.toggle('compact', pw < 270 || H < 560);
         e.panelL.style.cssText = `display:block;left:${Math.max(8 + S.l, x - pw - 10)}px;width:${pw}px;top:${12 + S.t}px;bottom:${12 + S.b}px`;
-        const prw = Math.min(pw, W - x - w - 18 - S.r);
-        this.rightPanel = { left: x + w + 10, width: prw };
-        e.panelR.style.cssText = `display:block;left:${x + w + 10}px;width:${prw}px;top:${64 + S.t}px;bottom:${12 + S.b}px`;
+        const prw = Math.min(pw, W - x - f.w - 18 - S.r);
+        this.rightPanel = { left: x + f.w + 10, width: prw };
+        e.panelR.style.cssText = `display:block;left:${x + f.w + 10}px;width:${prw}px;top:${64 + S.t}px;bottom:${12 + S.b}px`;
         e.hudTop.style.display = 'none';
-        e.lumenBar.style.cssText = `left:${x + w + 10}px;width:${Math.min(pw, W - x - w - 18 - S.r)}px;top:${12 + S.t}px;right:auto;border-radius:10px;border:1px solid rgba(41,227,255,0.25);white-space:normal;min-height:46px;`;
-        e.mgBar.style.cssText = `left:${x + 8}px;width:${w - 16}px;top:${y + 6}px;`;
+        const dH = Math.round(prw / 4);
+        this._placeDmd(false, x + f.w + 10, 12 + S.t, prw, dH);
+        const lumenTop = 12 + S.t + dH + 10;
+        e.panelR.style.top = (lumenTop + 58) + 'px';
+        e.lumenBar.style.cssText = `left:${x + f.w + 10}px;width:${prw}px;top:${lumenTop}px;right:auto;border-radius:10px;border:1px solid rgba(41,227,255,0.25);white-space:normal;min-height:46px;`;
+        e.mgBar.style.cssText = `left:${x + 8}px;width:${f.w - 16}px;top:${y + 6}px;`;
         e.bottom.style.display = 'none';
         const lsz = Math.min(96, Math.max(70, side * 0.3));
         e.launch.style.cssText = `width:${lsz}px;height:${lsz}px;right:${16 + S.r}px;bottom:${16 + S.b}px;`;
       } else {
-        // paysage étroit : bandeau supérieur + plateau
-        const topH = 70 + S.t;
-        h = H - topH - 8 - S.b; w = h * ratio;
-        x = (W - w) / 2; y = topH + 2;
-        view = { x, y, w, h };
+        // paysage étroit : bandeau supérieur (afficheur) + plateau
+        const topH = dmdH + 14 + S.t;
+        const availH = H - topH - 8 - S.b;
+        const f2 = follow ? f : fit(W - 12, availH);
+        scr = { x: (W - f2.w) / 2, y: topH + 2, w: f2.w, h: follow ? availH : f2.hp, flatH: follow ? availH : f2.h };
       }
     }
-    if (!view) {
-      const topH = 48 + 24 + S.t;
+    if (!scr) {
+      const topH = dmdH + 14 + S.t;
       const bottomMin = 76 + S.b;
-      const availH = H - topH - bottomMin - 4;
-      let w = Math.min(W - 6 - S.l - S.r, availH * ratio);
-      let h = w / ratio;
-      const x = (W - w) / 2;
-      const y = topH + 2;
-      view = { x, y, w, h };
+      const f = fit(W - 6 - S.l - S.r, H - topH - bottomMin - 4);
+      scr = { x: (W - f.w) / 2, y: topH + 2, w: f.w, h: f.hp, flatH: f.h };
     }
-    view.scale = view.scaleOverride || view.w / TABLE_W;
+    // placement du canevas du plateau
+    let view, cv;
+    if (tilt) {
+      const mTop = 40, mBot = 40;
+      const yb = scr.y + scr.h;
+      cv = {
+        left: 0, top: yb - scr.flatH - mTop, width: W, height: scr.flatH + mTop + mBot,
+        transform: `perspective(${(tilt.PK * scr.flatH).toFixed(1)}px) rotateX(${tilt.deg}deg)`,
+        origin: `${(scr.x + scr.w / 2).toFixed(1)}px ${(mTop + scr.flatH).toFixed(1)}px`,
+      };
+      view = { x: scr.x, y: mTop, w: scr.w, h: scr.flatH, tilt };
+    } else {
+      cv = { left: 0, top: 0, width: W, height: H, transform: 'none', origin: '50% 50%' };
+      view = { x: scr.x, y: scr.y, w: scr.w, h: scr.flatH, follow, scaleOverride };
+    }
+    view.scale = view.scaleOverride || view.w / B.w;
     view.follow = !!view.follow;
     if (!panels) {
       e.panelL.style.display = 'none';
       e.panelR.style.display = 'none';
       e.hudTop.style.display = '';
-      e.hudTop.style.height = (46 + S.t) + 'px';
-      e.lumenBar.style.cssText = `top:${46 + S.t}px;`;
-      const bottomH = H - (view.y + view.h);
+      e.hudTop.style.height = (dmdH + 10 + S.t) + 'px';
+      this._placeDmd(true, 0, 0, dmdH * 4, dmdH);
+      e.lumenBar.style.cssText = `top:${dmdH + 10 + S.t}px;`;
+      const bottomH = H - (scr.y + scr.h);
       e.bottom.style.display = '';
       e.bottom.style.width = (W - 110) + 'px';
       const lsz = bottomH >= 92 ? 84 : 66;
@@ -230,7 +278,7 @@ export class UI {
       e.launch.style.cssText = `width:${lsz}px;height:${lsz}px;right:${12 + S.r}px;bottom:${lb}px;`;
       e.mgBar.style.cssText = bottomH > 70
         ? `left:${8 + S.l}px;width:${W - lsz - 36}px;bottom:${6 + S.b}px;`
-        : `left:${view.x + 8}px;width:${view.w - 16}px;top:${view.y + 4}px;`;
+        : `left:${scr.x + 8}px;width:${scr.w - 16}px;top:${scr.y + 4}px;`;
     }
     // Annonces : dans le panneau latéral sur grand écran (le plateau reste dégagé),
     // sinon au tiers du plateau, en semi-transparence.
@@ -241,20 +289,35 @@ export class UI {
       e.banner.style.maxWidth = (pr.width + 10) + 'px';
       e.banner.classList.add('side');
     } else {
-      e.banner.style.left = (view.x + view.w / 2) + 'px';
-      e.banner.style.top = (view.y + view.h * 0.37) + 'px';
-      e.banner.style.maxWidth = (view.w * 0.92) + 'px';
+      e.banner.style.left = (scr.x + scr.w / 2) + 'px';
+      e.banner.style.top = (scr.y + scr.h * 0.37) + 'px';
+      e.banner.style.maxWidth = (scr.w * 0.92) + 'px';
       e.banner.classList.remove('side');
     }
-    e.tally.style.top = (view.y + view.h * 0.4) + 'px';
-    e.tally.style.left = (view.x + view.w / 2) + 'px';
+    e.tally.style.top = (scr.y + scr.h * 0.4) + 'px';
+    e.tally.style.left = (scr.x + scr.w / 2) + 'px';
     this.view = view;
+    this.mgInWorld = !view.follow && B.y0 < 0;
+    this.screenRect = scr;
+    this.canvasRect = cv;
     this.panels = panels;
     return view;
   }
 
+  // Afficheur : dans le bandeau supérieur (portrait) ou en tête du panneau droit (grand écran).
+  _placeDmd(inTop, x, y, w, h) {
+    const el = this.el.dmd, e = this.el;
+    if (inTop) { if (el.parentNode !== e.hudTop) e.hudTop.prepend(el); el.style.cssText = 'position:relative;'; }
+    else { if (el.parentNode !== e.hud) e.hud.appendChild(el); el.style.cssText = `position:absolute;left:${x}px;top:${y}px;`; }
+    e.hud.classList.toggle('dmd-top', inTop);
+    this.dmd.resize(Math.round(w), Math.round(h), Math.min(window.devicePixelRatio || 1, 2));
+  }
+
   // ------------------------------------------------------------ messages
-  banner(title, sub, color = '#29e3ff', dur = 2) {
+  banner(title, sub, color = '#29e3ff', dur = 2, kind = 'banner', data = null) {
+    this.dmd.show(kind, { title, sub, color, ...(data || {}) });
+    // sans panneau latéral, la bannière couvrirait le plateau : l'afficheur suffit
+    if (!this.panels && !(data && data.force)) return;
     this.bannerQueue.push({ title, sub, color, dur });
     if (this.bannerQueue.length > 3) this.bannerQueue.shift();
     if (this.bannerT <= 0) this._nextBanner();
@@ -271,6 +334,7 @@ export class UI {
   }
 
   lumen(msg) {
+    if (msg) this.dmd.say(msg.text, msg.persona);
     const bar = this.el.lumenBar;
     if (!msg) { bar.classList.remove('talk'); return; }
     this.el.lumenText.textContent = msg.persona === 'null' ? 'NULL › ' + msg.text : msg.text;
@@ -300,10 +364,26 @@ export class UI {
     for (const b of [this.el.balls, this.el.balls2]) { b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
   }
 
+  _updateDmd(game, dt) {
+    const d = this.dmd;
+    if (game.state !== 'title') {
+      d.setScore(game.score);
+      d.setInfo({ balls: game.ballsLeft, level: game.level, mult: game.bonus.mult, bonusX: game.table.bonusX });
+      const mg = game.minigame;
+      if (mg && game.scene === 'minigame') {
+        const h = mg.hud();
+        d.setMinigame({ title: h.title, timeLeft: h.timeLeft, timeLimit: h.timeLimit, progress: h.relaunch ? 'RELANCE' : h.progress, color: h.color });
+      } else d.setMinigame(null);
+    }
+    d.update(dt);
+    d.draw();
+  }
+
   // ------------------------------------------------------------ mise à jour par image
   update(game, dt) {
     if (this.bannerT > 0) { this.bannerT -= dt; if (this.bannerT <= 0) { this.el.banner.classList.remove('show'); setTimeout(() => this._nextBanner(), 220); } }
     if (this.tallyT > 0) { this.tallyT -= dt; if (this.tallyT <= 0) this.el.tally.classList.add('hidden'); }
+    this._updateDmd(game, dt);
     if (game.state === 'title') return;
     const c = this.cache, e = this.el;
     const sc = fmt(game.score);
@@ -325,10 +405,12 @@ export class UI {
     // barre de minijeu
     const mg = game.minigame;
     const showMg = !!mg && game.scene === 'minigame';
-    if (c.showMg !== showMg) {
-      c.showMg = showMg;
-      e.mgBar.classList.toggle('hidden', !showMg);
+    if (c.showMg !== showMg || c.mgInWorld !== this.mgInWorld) {
+      c.showMg = showMg; c.mgInWorld = this.mgInWorld;
+      // l'écran du minijeu est dessiné au-dessus de l'arène, sauf en caméra de suivi
+      e.mgBar.classList.toggle('hidden', !showMg || this.mgInWorld);
       e.missionChip.classList.toggle('hidden', showMg);
+      e.goal.classList.toggle('hidden', showMg);
       e.effectsChips.classList.toggle('hidden', showMg);
     }
     if (showMg) {
@@ -361,12 +443,18 @@ export class UI {
     const sectorsHtml = ['hangar', 'reactor', 'defense', 'core'].map(id => {
       const st = t.sectorState(id), S = SECTORS[id];
       const p = st === 'done' ? 1 : t.sectorProgress(id);
-      const how = id === 'hangar' ? '3 cibles gauches → rampe gauche' : id === 'reactor' ? '2 boucles → portail' : id === 'defense' ? '3 cibles droites → rampe droite' : '3 secteurs → portail';
+      const how = id === 'hangar' ? '3 cibles gauches → rampe du pont' : id === 'reactor' ? '4 cellules du pont → UPLINK' : id === 'defense' ? '3 cibles tombantes → rampe droite' : '3 secteurs → portail';
       return `<li class="${st}" style="--c:${S.color}"><span class="ic" style="color:${S.color}">${SECTOR_ICONS[id]}</span>` +
         `<span class="nm">${S.game}<small>${how}</small></span><span class="st" style="color:${st === 'hold' ? '#ffb52e' : st === 'locked' ? '#7f93b8' : S.color}">${STATE_TXT[st]}</span>` +
         `<span class="bar"><i style="width:${Math.round(p * 100)}%;background:${S.color}"></i></span></li>`;
     }).join('');
     if (c.sectors !== sectorsHtml) { c.sectors = sectorsHtml; e.sectors.innerHTML = sectorsHtml; }
+    const goal = t.nextGoal ? t.nextGoal() : null;
+    const gk = goal ? goal.text + goal.color : '';
+    if (c.goal !== gk) {
+      c.goal = gk;
+      for (const el of [e.goal, e.goal2]) { el.textContent = goal ? goal.text : ''; el.style.setProperty('--g', goal ? goal.color : ''); }
+    }
     const mi = game.missions.hud();
     const missionHtml = mi ? `<div class="mt">${escapeHtml(mi.text)}</div>${mi.progress}/${mi.goal} · ${Math.ceil(mi.timeLeft)} s<div class="mp"><i style="width:${Math.round(100 * mi.progress / mi.goal)}%"></i></div>` : '<span class="muted">En attente d\'une tâche…</span>';
     if (c.mission !== missionHtml) { c.mission = missionHtml; e.mission.innerHTML = missionHtml; }

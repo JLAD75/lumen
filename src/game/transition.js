@@ -24,7 +24,8 @@ export class Transition {
       game.sfx('warpIn');
     } else {
       const b = this.ball;
-      this.from = b && !this.pending ? { x: b.x, y: b.y } : this.minigame.exitPoint();
+      const drained = !!(this.result && this.result.drained);
+      this.from = b && !this.pending && !drained ? { x: b.x, y: b.y } : this.minigame.exitPoint();
       this.to = { x: L.portal.x, y: L.portal.y + 10 };
       if (b) { b.state = 'captured'; this.minigame.world.removeBall(b); }
       game.sfx('warpOut');
@@ -37,7 +38,7 @@ export class Transition {
     if (this.phase === 1 && this.t >= this.dur1) { this.phase = 2; this.t = 0; }
     else if (this.phase === 2 && this.t >= this.dur2) {
       if (this.kind === 'enter') this.game._beginMinigame(this.minigame, this.ball);
-      else this.game._endMinigame(this.result, this.pending ? null : this.ball, this.pending);
+      else this.game._endMinigame(this.result, this.ball, this.pending);
     }
   }
 

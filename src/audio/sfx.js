@@ -1,6 +1,9 @@
 // Effets sonores procéduraux. Chaque fonction reçoit le moteur (A) puis ses paramètres.
 // Les sons sont synchronisés aux événements physiques (appelés depuis la simulation).
 
+import { SFX_DEFENSE } from './sfx-defense.js';
+import { SFX_BREAKOUT } from './sfx-breakout.js';
+
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a, b) => a + Math.random() * (b - a);
 let bumperIdx = 0, bumperLast = 0, bumperRun = 0;
@@ -179,6 +182,62 @@ export const SFX = {
   },
 
   inlane(A, pan) { const o = A.out(pan * 0.5); A.tone({ f: 880, dur: 0.05, gain: 0.05, dest: o }); },
+
+  // ---------------------------------------------------------- pont supérieur et nouveaux éléments
+  deckEnter(A) {
+    if (!A.throttle('deckEnter', 0.4)) return;
+    const t = A.now, o = A.out(0.2, null, 0.4);
+    A.noise({ f: 500, f2: 3500, q: 2, dur: 0.3, gain: 0.08, dest: o });
+    [76, 83, 88].forEach((m, k) => A.tone({ type: 'triangle', f: nf(m), t: t + k * 0.05, dur: 0.16, gain: 0.07, dest: o }));
+  },
+
+  deckDrop(A) {
+    if (!A.throttle('deckDrop', 0.3)) return;
+    const o = A.out(0, null, 0.15);
+    A.tone({ f: 900, f2: 300, dur: 0.18, gain: 0.07, dest: o });
+    A.noise({ f: 1200, q: 2, dur: 0.05, gain: 0.12, t: A.now + 0.16, dest: o });
+  },
+
+  uplinkIn(A) {
+    const t = A.now, o = A.out(0, null, 0.45);
+    A.tone({ f: 70, f2: 40, dur: 0.18, gain: 0.35, dest: o });
+    A.noise({ f: 800, q: 3, dur: 0.06, gain: 0.2, dest: o });
+    for (let k = 0; k < 4; k++) A.tone({ type: 'square', f: nf(72 + k * 5), t: t + 0.15 + k * 0.08, dur: 0.07, gain: 0.04, filter: 'lowpass', ff: 3000, dest: o });
+  },
+
+  uplinkOut(A) {
+    const o = A.out(0, null, 0.3);
+    A.noise({ f: 300, f2: 2500, q: 1.5, dur: 0.12, gain: 0.25, dest: o });
+    A.tone({ f: 120, f2: 60, dur: 0.12, gain: 0.3, dest: o });
+  },
+
+  // spinner : clic métallique dont la hauteur suit la vitesse de rotation
+  spinner(A, pan = 0, w = 10) {
+    if (!A.claim('event', 0.04, 0.5)) return;
+    const o = A.out(pan * 0.6);
+    const f = 1500 + Math.min(40, w) * 25;
+    A.tone({ type: 'square', f, dur: 0.018, gain: 0.035, filter: 'bandpass', ff: f, q: 4, dest: o });
+    A.noise({ f: 5000, q: 3, dur: 0.012, gain: 0.05, dest: o });
+  },
+
+  dropTarget(A, i = 0) {
+    if (!A.claim('event', 0.25, 2)) return;
+    const o = A.out(0.6, null, 0.15);
+    A.noise({ f: 700, f2: 200, q: 1, dur: 0.08, gain: 0.35, dest: o });
+    A.tone({ f: 140, f2: 60, dur: 0.12, gain: 0.3, dest: o });
+    A.tone({ type: 'triangle', f: chordNote(A, i + 2, 1), dur: 0.2, gain: 0.08, dest: o });
+  },
+
+  dropReset(A) {
+    const t = A.now, o = A.out(0.6, null, 0.1);
+    for (let k = 0; k < 3; k++) { A.noise({ f: 900, q: 1.5, dur: 0.04, gain: 0.2, t: t + k * 0.07, dest: o }); A.tone({ f: 200, f2: 120, dur: 0.05, gain: 0.15, t: t + k * 0.07, dest: o }); }
+  },
+
+  kickback(A) {
+    const o = A.out(-0.7, null, 0.3);
+    A.tone({ f: 90, f2: 300, dur: 0.15, gain: 0.4, dest: o });
+    A.noise({ f: 600, f2: 3000, q: 1.2, dur: 0.2, gain: 0.25, dest: o });
+  },
 
   outlane(A) {
     const o = A.out(0, null, 0.1);
@@ -574,3 +633,6 @@ export const SFX = {
     for (const m of [69, 73, 76, 81]) A.tone({ type: 'sawtooth', f: nf(m), t: t + 1.4, dur: 1.8, gain: 0.05, filter: 'lowpass', ff: 800, ff2: 5000, fglide: 0.3, dest: o });
   },
 };
+
+// sons des minijeux définis dans leurs propres modules
+Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT);

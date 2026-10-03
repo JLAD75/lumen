@@ -17,12 +17,15 @@
 </head>
 <body>
 <div id="app">
+  <canvas id="bg" aria-hidden="true"></canvas>
   <canvas id="game" aria-label="Plateau de flipper"></canvas>
+  <div id="fx" aria-hidden="true"><div class="scan"></div><div class="vig"></div><div class="edge"></div><div class="frame"></div><div class="flash"></div></div>
   <div id="touch-layer" aria-hidden="true"></div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
     <div id="hud-top">
+      <canvas id="dmd" class="dmd" aria-label="Afficheur à points"></canvas>
       <div class="hud-score"><span id="score">0</span><small id="hiscore">Record 0</small></div>
       <div class="hud-mid">
         <div id="balls" class="balls" aria-label="Billes restantes"></div>
@@ -37,6 +40,8 @@
       <div id="mg-perk" class="mg-perk"></div>
     </div>
     <aside id="panel-left" class="panel">
+      <h3>Prochain objectif</h3>
+      <div id="goal2" class="goal"></div>
       <h3>Secteurs de la station</h3>
       <ul id="sectors" class="sectors"></ul>
       <h3>Mission</h3>
@@ -57,6 +62,7 @@
       <p class="keys touch-keys">Moitié gauche / droite de l'écran : batteurs (simultanés) · bouton LANCER : maintenir puis relâcher · ❚❚ : pause</p>
     </aside>
     <div id="hud-bottom">
+      <div id="goal" class="goal"></div>
       <div id="mission-chip" class="chip"></div>
       <div id="effects-chips" class="chips"></div>
     </div>
@@ -92,8 +98,8 @@
         <div>
           <h4>Ordinateur</h4>
           <ul>
-            <li><kbd>←</kbd> ou <kbd>A</kbd> : batteur gauche / déplacement à gauche</li>
-            <li><kbd>→</kbd> ou <kbd>D</kbd> : batteur droit / déplacement à droite</li>
+            <li><kbd>←</kbd> ou <kbd>A</kbd> : batteurs gauches (plateau et pont) / déplacement à gauche</li>
+            <li><kbd>→</kbd> ou <kbd>D</kbd> : batteurs droits (plateau et pont) / déplacement à droite</li>
             <li><kbd>Espace</kbd> : maintenir pour charger, relâcher pour lancer</li>
             <li><kbd>Échap</kbd> : pause</li>
           </ul>
@@ -110,15 +116,17 @@
       </div>
       <h2>Règles essentielles</h2>
       <ul class="rules">
-        <li><b>3 billes</b> pour toute la partie, minijeux compris. Perdre la bille dans un minijeu consomme une bille de la réserve. Relancez ensuite avec la commande de lancement : la progression du minijeu est conservée.</li>
+        <li><b>3 billes</b> pour la partie. Dans un minijeu, une bille qui tombe <b>ne coûte rien</b> : le minijeu échoue, la bille revient sur le plateau principal et la progression du secteur est gardée pour la tentative suivante (un bouclier relance la bille sur place).</li>
+        <li><b>Deux niveaux</b> : le lanceur et la rampe gauche mènent au <b>pont supérieur</b>, avec ses deux petits batteurs (mêmes commandes). La bille qui passe entre eux retombe dans les couloirs C·P·U.</li>
         <li><b>Accès aux secteurs</b> :
-          <span class="tag c1">HANGAR</span> 3 cibles gauches, puis la rampe gauche → Casse-briques ·
-          <span class="tag c2">RÉACTEUR</span> 2 boucles, puis le portail central → Réacteur instable ·
-          <span class="tag c3">DÉFENSE</span> 3 cibles droites, puis la rampe droite → Défense ·
-          <span class="tag c4">NOYAU</span> les 3 secteurs réactivés, puis le portail → Duel contre NULL.</li>
-        <li>Les lampes hexagonales indiquent l'état de chaque secteur : verrouillé, en préparation (barre), accessible (clignote), en attente ⧗ (multibille en cours) ou terminé ✓.</li>
-        <li><b>C·P·U</b> : allumez les 3 couloirs du haut (les batteurs décalent les lumières). Bonus ×+1. Deux C·P·U allument la <b>multibille</b> au portail.</li>
-        <li><b>Combos</b> : enchaînez des tirs majeurs différents en moins de 4 s. Les flèches à chevrons blancs indiquent les tirs qui prolongent le combo.</li>
+          <span class="tag c1">HANGAR</span> 3 cibles gauches, puis la rampe du pont → Casse-briques ·
+          <span class="tag c2">RÉACTEUR</span> 4 cellules du pont, puis l'éjecteur UPLINK → Réacteur instable ·
+          <span class="tag c3">DÉFENSE</span> 3 cibles tombantes droites, puis la rampe droite → Défense ·
+          <span class="tag c4">NOYAU</span> les 3 secteurs réactivés, puis le portail central → Duel contre NULL.</li>
+        <li>L'anneau d'inserts autour de l'œil de LUMEN montre l'état de chaque secteur : éteint, en préparation, accessible (clignote), en attente (ambre, pendant une multibille) ou réactivé (allumé fixe).</li>
+        <li><b>C·P·U</b> : allumez les 3 couloirs sous le pont (les batteurs décalent les lumières). Bonus ×+1. Deux C·P·U allument la <b>multibille</b> au portail.</li>
+        <li><b>Skill shot</b> : avant de lancer, les batteurs choisissent la cellule clignotante du pont ; touchez-la peu après le lancer.</li>
+        <li><b>Combos</b> : enchaînez des tirs majeurs différents en moins de 4 s. Les chevrons blancs indiquent les tirs qui prolongent le combo. Le <b>kickback</b> renvoie une fois la bille du couloir extérieur gauche ; les 4 cellules le rallument.</li>
         <li>Pendant une multibille, les accès aux minijeux sont <b>mis en attente</b>. Ils restent débloqués.</li>
       </ul>
       <h2>Bonus et cumul</h2>
@@ -144,6 +152,7 @@
       <label class="slider">Voix de l'IA <input type="range" min="0" max="1" step="0.05" data-set="voice"></label>
       <label class="toggle"><input type="checkbox" data-set="muted"> Mode muet</label>
       <label class="toggle"><input type="checkbox" data-set="reducedFx"> Réduire les effets visuels</label>
+      <label class="toggle"><input type="checkbox" data-set="tilt"> Vue 3D inclinée (comme devant un vrai flipper)</label>
       <label class="toggle"><input type="checkbox" data-set="reducedMotion"> Réduire les mouvements (secousses, zooms)</label>
       <label class="toggle"><input type="checkbox" data-set="haptics"> Vibrations (mobile)</label>
       <label class="toggle"><input type="checkbox" data-set="showZones"> Afficher les zones tactiles au lancement</label>

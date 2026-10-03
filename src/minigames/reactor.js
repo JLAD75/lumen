@@ -22,7 +22,8 @@ export class ReactorGame extends FlipperArena {
       perk: { name: 'Stabilisateur', desc: 'Instabilité gelée pendant 10 s' },
     });
     this.rounds = lvl === 1 ? [3, 4, 5] : [4, 5, 6];
-    this.round = 0;
+    // séquences stabilisées lors d'une tentative précédente (jamais la dernière)
+    this.round = Math.min(this.rounds.length - 1, (this.kept && this.kept.round) || 0);
     this.seq = [];
     this.stepIdx = 0;
     this.instability = 0;
@@ -158,6 +159,9 @@ export class ReactorGame extends FlipperArena {
   }
 
   resetCombos() { this.chain = 0; }
+
+  // séquences déjà stabilisées : reprises à la tentative suivante
+  keepProgress() { return { round: this.round }; }
 
   results(success) {
     return {

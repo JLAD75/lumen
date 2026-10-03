@@ -29,7 +29,7 @@ class BotInput {
 }
 
 const noop = () => {};
-const fx = { spark: noop, burst: noop, ring: noop, text: noop, flash: noop, shake: noop, drain: noop, update: noop, clear: noop };
+const fx = { spark: noop, burst: noop, ring: noop, text: noop, flash: noop, shake: noop, drain: noop, arc: noop, sweep: noop, update: noop, clear: noop };
 const music = { setMode: noop, setIntensity: noop, setTension: noop, setFlag: noop, bump: noop, currentChord: () => [220, 261.6, 329.6] };
 const audio = { music, sfx: noop, impact: noop, speak: noop, setPaused: noop, chargeLevel: noop, stopCharge: noop };
 const events = [];
@@ -74,19 +74,25 @@ function bot(g, input, skill = 0.7) {
 log('\n[1] Carte du lanceur (puissance → première destination)');
 {
   const rows = [];
+  let deckOk = true, weakOk = true;
   for (let p = 0.12; p <= 1.0001; p += 0.08) {
     const { g } = makeGame();
     g.newGame();
     const t = g.table;
     let first = null;
-    const oLane = t.onLane.bind(t), oOrbit = t.onOrbit.bind(t);
+    const oLane = t.onLane.bind(t), oOrbit = t.onOrbit.bind(t), oDeck = t.onPlungeDeck.bind(t);
+    t.onPlungeDeck = (b) => { if (!first) first = 'pont supérieur'; oDeck(b); };
     t.onLane = (i, b, d) => { if (!first) first = 'couloir ' + 'CPU'[i]; oLane(i, b, d); };
     t.onOrbit = (s, d, b) => { if (!first && d < 0) first = (s === 'L' ? 'orbite gauche' : 'orbite droite') + ' (descente)'; oOrbit(s, d, b); };
     t.launch(p);
     run(g, 3, () => { if (first) return false; if (t.shooterBall && t.time > 0.4 && !t.plunger.auto) { first = 'retombe au lanceur'; return false; } });
     rows.push(`${p.toFixed(2)} → ${first || 'plateau (bumpers)'}`);
+    if (p >= 0.5) deckOk = deckOk && first === 'pont supérieur';
+    if (p < 0.25) weakOk = weakOk && first === 'retombe au lanceur';
   }
   log('  ' + rows.join('\n  '));
+  check(deckOk, 'un lancer franc (≥ 50 %) mène toujours au pont supérieur');
+  check(weakOk, 'un lancer trop faible retombe au lanceur');
 }
 
 // ------------------------------------------------------------------ 2. robustesse physique
@@ -103,15 +109,18 @@ log('\n[2] Robustesse : 600 billes depuis des zones ouvertes, vitesses aléatoir
   const origQueue = t.queueLaunch.bind(t);
   t.queueLaunch = () => { lost++; };
   const { Ball } = await import('../src/physics/ball.js');
-  const starts = [[281, 160, 120], [150, 250, 40], [420, 250, 40], [281, 620, 120], [200, 760, 40], [360, 760, 40], [281, 520, 30]];
+  // [x, y, dispersion, couche] : plateau, couloirs d'orbite, pont supérieur
+  const starts = [[281, 230, 60], [150, 330, 30], [420, 330, 30], [281, 620, 120], [200, 760, 40], [360, 760, 40], [281, 520, 30], [41, 300, 8], [521, 300, 8], [281, 20, 100, 2], [150, 30, 30, 2], [420, 30, 30, 2]];
   for (let k = 0; k < 600; k++) {
     const s = starts[k % starts.length];
     const b = new Ball(s[0] + (Math.random() * 2 - 1) * s[2], s[1] + (Math.random() * 2 - 1) * 20);
+    b.layer = s[3] || 0;
     const a = Math.random() * Math.PI * 2, sp = Math.random() * 3500;
     b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
     w.addBall(b);
     for (let i = 0; i < 1200; i++) {
-      t.R.flipL.pressed = Math.random() < 0.3; t.R.flipR.pressed = Math.random() < 0.3;
+      t.R.flipL.pressed = t.R.deck.flipL.pressed = Math.random() < 0.3;
+      t.R.flipR.pressed = t.R.deck.flipR.pressed = Math.random() < 0.3;
       b.px = b.x; b.py = b.y;
       w.step(DT);
       maxSub = Math.max(maxSub, w.substepsLast);
@@ -134,6 +143,8 @@ for (let seed = 0; seed < 3; seed++) {
   const t = g.table;
   const o = { exit: t.onRampExit.bind(t), orbit: t.onOrbit.bind(t), shutter: t.onShutter.bind(t) };
   t.onRampExit = (s, d, b) => { if (d < 0) stats.ramps++; o.exit(s, d, b); };
+  const oDeckRamp = t.onDeckRamp.bind(t);
+  t.onDeckRamp = (b) => { stats.ramps++; oDeckRamp(b); };
   const startMg = g.startMinigame.bind(g);
   g.startMinigame = (...a) => { stats.minigames++; startMg(...a); };
   let launchHold = 0;
@@ -152,11 +163,11 @@ for (let seed = 0; seed < 3; seed++) {
   check(g.ledgerErrors === 0, 'aucune bille dupliquée');
 }
 
-// ------------------------------------------------------------------ 4. minijeux : perte, relance, réussite, échec
-log('\n[4] Minijeux : continuité de la bille et réserve commune');
+// ------------------------------------------------------------------ 4. minijeux : chute, bouclier, réussite
+log('\n[4] Minijeux : continuité de la bille, chute = retour au plateau sans perte');
 for (const sector of ['hangar', 'reactor', 'defense', 'core']) {
   log(`  — ${sector}`);
-  const { g, input } = makeGame();
+  const { g } = makeGame();
   g.newGame();
   const t = g.table;
   t.launch(0.5);
@@ -166,68 +177,78 @@ for (const sector of ['hangar', 'reactor', 'defense', 'core']) {
   g.debug('start', sector);
   run(g, 3, () => g.scene !== 'minigame' ? undefined : false);
   check(g.scene === 'minigame', 'transition vers le minijeu terminée');
-  const mg = g.minigame;
+  let mg = g.minigame;
   check(mg.world.balls.length === 1 && mg.world.balls[0].id === id, 'la même bille (id conservé) est entrée dans le minijeu');
   check(t.world.balls.length === 0, 'plus aucune bille sur le plateau');
   const before = g.ballsLeft;
-  // perte physique de la bille
+  // 1) chute avec un bouclier : relance automatique de la même bille dans le minijeu
+  g.bonus.grant('shield');
   mg.barrierT = 0; if (mg.barrier) mg.barrier.enabled = false;
   for (const b of mg.world.balls) { b.x = 300; b.y = 1200; b.vy = 100; }
   run(g, 0.05);
-  check(g.ballsLeft === before - 1, `perte en minijeu : réserve ${before} → ${g.ballsLeft}`);
-  check(mg.state === 'relaunch', 'en attente de relance');
-  const progressBefore = mg.progressText();
-  // relance via la commande de lancement
-  let held = 0;
-  run(g, 3, () => { held += DT; input.s.launch = held < 0.5; if (mg.state === 'play' && held > 0.6) return false; });
-  input.s.launch = false;
-  check(mg.state === 'play' && mg.world.balls.length === 1, 'relance avec la commande habituelle');
-  check(mg.progressText() === progressBefore, `progression conservée (${progressBefore})`);
-  // réussite
-  const relaunchedId = mg.world.balls[0].id;
+  check(g.ballsLeft === before && g.bonus.shield === 0, 'chute avec bouclier : bouclier consommé, réserve intacte');
+  check(mg.state === 'relaunch' && mg.pendingBall && mg.pendingBall.id === id, 'relance automatique de la même bille');
+  run(g, 2, () => mg.state === 'play' ? false : undefined);
+  check(mg.state === 'play' && mg.world.balls.length === 1 && mg.world.balls[0].id === id, 'la bille est relancée dans le minijeu');
+  // 2) chute sans bouclier : fin du minijeu, retour au plateau, aucune bille consommée
+  mg.barrierT = 0; if (mg.barrier) mg.barrier.enabled = false;
+  for (const b of mg.world.balls) { b.x = 300; b.y = 1200; b.vy = 100; }
+  run(g, 4, () => g.scene === 'table' && !g.transition ? false : undefined);
+  check(g.scene === 'table', 'chute sans bouclier : retour au plateau principal');
+  check(g.ballsLeft === before, `aucune bille consommée (${before} → ${g.ballsLeft})`);
+  check(t.world.balls.length === 1 && t.world.balls[0].id === id && t.world.balls[0].state === 'free', 'la même bille revient en jeu sur le plateau');
+  check(g.bonus.saveT > 0, 'courte protection au retour');
+  check(!t.sectors[sector].done, 'secteur non réactivé après une chute');
+  // 3) nouvelle tentative : réussite
+  g.debug('qualify', sector);
+  g.debug('start', sector);
+  run(g, 3, () => g.scene !== 'minigame' ? undefined : false);
+  mg = g.minigame;
+  check(g.scene === 'minigame' && mg.world.balls[0].id === id, 'nouvelle tentative avec la même bille');
   mg.debugWin();
   run(g, 4, () => g.scene === 'table' && !g.transition ? false : undefined);
   check(g.scene === 'table', 'retour au plateau après réussite');
-  check(t.world.balls.length === 1 && t.world.balls[0].id === relaunchedId, 'la bille du minijeu revient sur le plateau (pas de doublon)');
+  check(t.world.balls.length === 1 && t.world.balls[0].id === id, 'la bille du minijeu revient sur le plateau (pas de doublon)');
   check(g.bonus.saveT > 0, 'courte protection active au retour');
   check(t.sectors[sector].done || sector === 'core', 'secteur réactivé');
   check(g.ledgerErrors === 0, 'comptabilité sans erreur');
 }
 
-log('\n[5] Minijeu : échec par chrono (bille en jeu) et par chrono (bille en attente)');
+log('\n[5] Minijeu : échec au chrono (bille en jeu, bille en attente) et progression conservée');
 {
   const { g } = makeGame();
   g.newGame();
   g.table.launch(0.5); run(g, 0.5);
-  g.debug('start', 'hangar');
+  g.debug('start', 'reactor');
   run(g, 3, () => g.scene === 'minigame' ? false : undefined);
   const mg = g.minigame;
   const before = g.ballsLeft;
+  mg.round = 1;
   mg.timeLeft = 0.02;
   run(g, 4, () => g.scene === 'table' ? false : undefined);
   check(g.scene === 'table' && g.table.world.balls.length === 1 && g.table.world.balls[0].state === 'free', 'échec au chrono : la bille revient en jeu sur le plateau');
   check(g.ballsLeft === before, 'aucune bille consommée');
-  check(g.table.sectorState('hangar') === 'locked', 'secteur à requalifier après échec');
-
-  // perte puis chrono écoulé pendant l'attente : la bille de remplacement va au lanceur
-  g.debug('qualify', 'hangar');
-  const b2 = g.table.world.balls[0];
-  g.table.world.removeBall(b2);
-  g.startMinigame('hangar', b2, 281, 430);
+  check(g.table.sectors.reactor.kept && g.table.sectors.reactor.kept.round === 1, 'progression du secteur mémorisée');
+  g.debug('qualify', 'reactor');
+  g.debug('start', 'reactor');
   run(g, 3, () => g.scene === 'minigame' ? false : undefined);
+  check(g.minigame && g.minigame.round === 1, 'la tentative suivante reprend la progression');
+
+  // bille en attente de relance (bouclier) quand le chrono expire : elle va au lanceur
   const mg2 = g.minigame;
+  const id2 = mg2.world.balls[0].id;
+  g.bonus.grant('shield');
   mg2.barrierT = 0; if (mg2.barrier) mg2.barrier.enabled = false;
   for (const b of mg2.world.balls) b.y = 1200;
   run(g, 0.05);
-  const left = g.ballsLeft;
-  mg2.state = 'play'; mg2.timeLeft = 0.01; mg2.state = 'relaunch';
+  check(mg2.state === 'relaunch', 'bille en attente de relance');
   mg2.finish(false, 'timeout');
   run(g, 4, () => g.scene === 'table' ? false : undefined);
-  check(g.table.shooterBall && g.table.world.balls.length === 1, 'bille en attente servie au lanceur du plateau');
-  check(g.ballsLeft === left, 'pas de consommation supplémentaire');
+  check(g.table.shooterBall && g.table.world.balls.length === 1 && g.table.shooterBall.id === id2, 'bille en attente servie au lanceur du plateau (même identité)');
+  check(g.ballsLeft === before, 'pas de consommation de bille');
 }
 
-log('\n[6] Dernière bille perdue dans un minijeu → fin de partie');
+log('\n[6] Dernière bille : une chute en minijeu ne termine pas la partie');
 {
   const { g } = makeGame();
   g.newGame();
@@ -238,8 +259,12 @@ log('\n[6] Dernière bille perdue dans un minijeu → fin de partie');
   const mg = g.minigame;
   mg.barrierT = 0; if (mg.barrier) mg.barrier.enabled = false;
   for (const b of mg.world.balls) b.y = 1200;
-  run(g, 0.1);
-  check(g.state === 'over' && g.ballsLeft === 0, 'partie terminée quand la dernière bille est perdue');
+  run(g, 4, () => g.scene === 'table' ? false : undefined);
+  check(g.state === 'play' && g.ballsLeft === 1 && g.table.world.balls.length === 1, 'partie poursuivie sur le plateau, réserve intacte');
+  g.bonus.saveT = 0;
+  g.debug('drain');
+  run(g, 6, () => g.state === 'over' ? false : undefined);
+  check(g.state === 'over', 'la perte de la dernière bille sur le plateau termine la partie');
 }
 
 log('\n[7] Multibille : accès mis en attente puis rétablis');
@@ -305,6 +330,94 @@ log('\n[9] Pause / reprise');
   check(g.resumeT > 0, 'courte grâce à la reprise');
   g.frame(0.1);
   check(b.y === y, 'pas de mouvement pendant le décompte');
+}
+
+log('\n[10] Pont supérieur, cibles tombantes, kickback, UPLINK');
+{
+  // bille posée sur le pont, sans jouer : elle redescend toujours par le centre
+  let down = 0, n = 0;
+  for (let k = 0; k < 30; k++) {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    const b = t.shooterBall; t.shooterBall = null;
+    b.state = 'free'; b.layer = 2; b.setPos(90 + k * 13, 10 + (k % 5) * 14); b.vx = (k % 2 ? 1 : -1) * 300; b.vy = 0;
+    n++;
+    run(g, 10, () => { if (b.layer === 0) { down++; return false; } });
+  }
+  check(down === n, `bille lâchée sur le pont : redescend au plateau (${down}/${n})`);
+  // petits batteurs : un tir depuis le berceau touche une cellule ou l'UPLINK
+  let hits = 0, tries = 0;
+  for (const side of ['L', 'R']) {
+    for (let d = 0.1; d <= 0.5; d += 0.05) {
+      const { g, input } = makeGame();
+      g.newGame();
+      const t = g.table;
+      const b = t.shooterBall; t.shooterBall = null;
+      b.state = 'free'; b.layer = 2; b.setPos(side === 'L' ? 110 : 470, 50); b.vx = side === 'L' ? 120 : -120;
+      g.bonus.saveT = 99;
+      let hit = false;
+      const oT = t.onDeckTarget.bind(t), oU = t.onUplink.bind(t);
+      t.onDeckTarget = (...a) => { hit = true; oT(...a); };
+      t.onUplink = (bb) => { hit = true; oU(bb); };
+      const key = side === 'L' ? 'left' : 'right';
+      input.s[key] = true; run(g, 2.5); input.s[key] = false;
+      let time = 0;
+      run(g, 3, () => { input.s[key] = time >= d && time < d + 0.4; time += DT; if (hit) return false; });
+      tries++; if (hit) hits++;
+    }
+  }
+  check(hits >= tries * 0.4, `les petits batteurs du pont atteignent cellules ou UPLINK (${hits}/${tries})`);
+  // cellules du pont → réacteur accessible → l'UPLINK lance le minijeu
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    const b = t.world.balls[0];
+    for (let i = 0; i < 4; i++) t.onDeckTarget(i, b, 500, false);
+    check(t.sectorState('reactor') === 'ready', '4 cellules : réacteur accessible');
+    let started = null;
+    g.startMinigame = (sector) => { started = sector; };
+    b.layer = 2; b.setPos(285, -40); b.vx = 0; b.vy = -400;
+    run(g, 2, () => started ? false : undefined);
+    check(started === 'reactor', 'l\'UPLINK lance le Réacteur');
+  }
+  // UPLINK sans mode : retient la bille puis la renvoie sur le pont
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    const b = t.shooterBall; t.shooterBall = null;
+    b.state = 'free'; b.layer = 2; b.setPos(285, -40); b.vx = 0; b.vy = -400;
+    let captured = false;
+    run(g, 4, () => { if (b.state === 'captured') captured = true; if (captured && b.state === 'free' && b.y > -40) return false; });
+    check(captured && b.state === 'free' && b.layer === 2, 'UPLINK : bille retenue puis renvoyée sur le pont');
+  }
+  // cibles tombantes → DÉFENSE ; remontée après le minijeu
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    const b = t.world.balls[0];
+    for (let i = 0; i < 3; i++) t.onDrop(i, b, 500, false);
+    check(t.drops.every(Boolean) && t.R.drops.every(p => !p.enabled), '3 cibles tombantes abattues (désactivées)');
+    check(t.sectorState('defense') === 'ready', 'DÉFENSE accessible');
+    t.onMinigameEnd('defense', true);
+    check(t.R.drops.every(p => p.enabled), 'cibles relevées après le minijeu');
+  }
+  // kickback : renvoie la bille une fois, puis s'éteint
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    const b = t.shooterBall; t.shooterBall = null;
+    b.state = 'free'; b.setPos(39, 760); b.vx = 0; b.vy = 600;
+    g.bonus.saveT = 0;
+    let up = false;
+    run(g, 1.5, () => { if (b.state === 'free' && b.vy < -1000) up = true; });
+    check(up && !t.kickback.lit, 'kickback : bille renvoyée, kickback consommé');
+  }
 }
 
 log(`\nRésultat : ${passes} vérifications réussies, ${failures} échec(s).`);

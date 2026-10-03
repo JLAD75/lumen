@@ -9,6 +9,10 @@ const POOL = [
   { id: 'combo',   text: 'Synchronisation : combo ×3', goal: 1,  event: 'combo3', time: 60, shots: ['lorbit', 'lramp', 'portal', 'rramp', 'rorbit'] },
   { id: 'lanes',   text: 'Balayage C·P·U',             goal: 1,  event: 'lanes',  time: 60, area: 'lanes' },
   { id: 'portal',  text: 'Sonder le portail',          goal: 2,  event: 'portal', time: 50, shots: ['portal'] },
+  { id: 'deck',    text: 'Patrouille du pont supérieur', goal: 2, event: 'deck',  time: 60, shots: ['lramp'] },
+  { id: 'cells',   text: 'Recharger 4 cellules du pont', goal: 4, event: 'deckTarget', time: 70, area: 'deck' },
+  { id: 'uplink',  text: 'Établir la liaison UPLINK',   goal: 1,  event: 'uplink', time: 70, area: 'deck' },
+  { id: 'spin',    text: 'Spinners : 25 rotations',     goal: 25, event: 'spin',   time: 45, shots: ['lorbit', 'rorbit'] },
 ];
 
 export class Missions {
@@ -52,6 +56,7 @@ export class Missions {
     this.timeLeft = m.time;
     this.flash = 2;
     this.game.sfx('missionStart');
+    this.game.dmd?.('mission', { text: m.text });
     this.game.say('missionStart', { text: m.text, goal: m.goal });
   }
 
@@ -76,7 +81,7 @@ export class Missions {
       const b = g.bonus.grant(this.completed % 3 === 1 ? 'magnet' : 'mult');
       reward = b.title;
     }
-    g.banner('MISSION ACCOMPLIE', `${this.current.text} — ${reward || ''}`, '#ffd84a', 2.2);
+    g.banner('MISSION ACCOMPLIE', `${this.current.text} — ${reward || ''}`, '#ffd84a', 2.2, 'missionDone', { text: reward || this.current.text });
     g.say('missionDone');
     this.current = null;
     this.cooldown = 6;
