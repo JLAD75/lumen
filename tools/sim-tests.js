@@ -596,6 +596,40 @@ log('\n[11] Barillets, aimant de l\'œil, vie au million, FURIE, surchauffe des 
     check(!g.frenzy && g.maxBalls === RULES.startBalls && events.some(e => e.startsWith('banner:FURIE PERDUE')), 'moins de 6 billes : FURIE perdue, réserve inchangée');
     check(t.multiball && t.ballsInPlay() === RULES.frenzyKeep - 1, 'les billes restantes continuent en multibille');
   }
+  // pas d'enchaînement : les points de la FURIE (et de sa multibille) ne comptent pas pour le million suivant
+  {
+    const { g } = makeGame();
+    g.newGame();
+    const t = g.table;
+    t.launch(0.8); run(g, 0.5);
+    g.score = RULES.lifeEvery + 1;
+    run(g, 2.6);
+    check(!!g.frenzy && g.frenzyLock, 'FURIE lancée, compteur du million gelé');
+    const next = g.nextLifeAt;
+    const gauge = g.lifeScore - (next - RULES.lifeEvery);
+    events.length = 0;
+    g.addScore(50 * RULES.lifeEvery);
+    run(g, 0.1);
+    check(g.pendingFrenzy === 0 && !events.some(e => e.startsWith('banner:MODE FURIE')), '50 millions pendant la FURIE : aucune FURIE en attente');
+    check(g.lifeScore - (g.nextLifeAt - RULES.lifeEvery) === gauge, 'jauge du million figée pendant la FURIE');
+    // fin de FURIE, la multibille continue : toujours gelé
+    g.endFrenzy(false);
+    run(g, 0.05);
+    check(t.multiball && g.frenzyLock, 'multibille après la FURIE : compteur toujours gelé');
+    g.addScore(5 * RULES.lifeEvery);
+    run(g, 0.05);
+    check(g.pendingFrenzy === 0 && !g.frenzy, 'points de la multibille de FURIE ignorés');
+    // retour à une bille : le compteur repart d'où il s'était arrêté
+    t.endMultiball();
+    g._lives();
+    check(!g.frenzyLock && g.lifeScore - (g.nextLifeAt - RULES.lifeEvery) === gauge, 'multibille terminée : la jauge reprend là où elle était');
+    // plusieurs millions d'un coup réserve pleine : une seule FURIE
+    g.addScore(5 * RULES.lifeEvery);
+    g.scene = 'minigame';          // plateau indisponible : la FURIE doit attendre
+    g._lives();
+    check(g.pendingFrenzy === 1, `${5} millions d'un coup : une seule FURIE en attente`);
+    g.scene = 'table';
+  }
   // hors FURIE : pas de surchauffe
   {
     const { g, input } = makeGame();

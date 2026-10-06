@@ -253,7 +253,7 @@ export class DialArt {
   constructor(r) {
     this.r = r;
     this.eyeSt = { x: 0, y: 0, blink: 0, nextBlink: 3 };
-    this.lifeAt = 0; this.lifeFlash = 0; this.lastT = 0;
+    this.lifeTick = 0; this.lifeFlash = 0; this.lastT = 0;
   }
 
   // ============================================================ statique : peinture
@@ -561,8 +561,8 @@ export class DialArt {
     const { x, y } = DIAL;
     const every = RULES.lifeEvery;
     // une vie vient d'être gagnée : éclair de la lampe « +1 »
-    if (this.lifeAt && game.nextLifeAt > this.lifeAt) this.lifeFlash = 2;
-    this.lifeAt = game.nextLifeAt;
+    if (game.lifeTick > this.lifeTick) this.lifeFlash = 2;
+    this.lifeTick = game.lifeTick;
     this.lifeFlash = Math.max(0, this.lifeFlash - dt);
     let u, kind;
     if (F) {

@@ -52,7 +52,10 @@ export class Game {
     this.maxBalls = RULES.startBalls;  // réserve maximale (agrandie par une FURIE réussie)
     this.nextLifeAt = RULES.lifeEvery; // prochain million : une vie (ou la FURIE si la réserve est pleine)
     this.frenzy = null;                // FURIE en cours : { intro, t, dur, need, kept }
-    this.pendingFrenzy = 0;
+    this.pendingFrenzy = 0;            // 0 ou 1 : une seule FURIE peut attendre son déclenchement
+    this.frenzyLock = false;           // FURIE (et sa multibille) en cours : le compteur du million est gelé
+    this.lifeScore = 0;                // score vu au dernier passage de _lives()
+    this.lifeTick = 0;                 // nombre de millions franchis (éclair de la lampe du cadran)
     this.level = 1;
     this.extraBallsThisLevel = 0;
     this.camera = { x: TABLE_W / 2, y: TABLE_H / 2, zoom: 1 };
@@ -80,6 +83,9 @@ export class Game {
     this.nextLifeAt = RULES.lifeEvery;
     this.frenzy = null;
     this.pendingFrenzy = 0;
+    this.frenzyLock = false;
+    this.lifeScore = 0;
+    this.lifeTick = 0;
     this.level = 1;
     this.extraBallsThisLevel = 0;
     this.bonus.reset();
@@ -124,6 +130,8 @@ export class Game {
 
   quitToTitle() {
     this.frenzy = null;
+    this.frenzyLock = false;
+    this.pendingFrenzy = 0;
     this.music.setFlag('frenzy', false);
     this.state = 'title';
     this.input.releaseAll();
@@ -306,18 +314,28 @@ export class Game {
   }
 
   // Une vie à chaque million de points ; réserve déjà pleine = FURIE (dès que le plateau le permet).
+  // Pendant une FURIE et la multibille qui la prolonge, les points marqués ne comptent pas pour
+  // le prochain million : sinon les dix billes enchaînent les FURIES à l'infini.
   _lives() {
     if (this.state !== 'play') return;
+    const gained = this.score - this.lifeScore;
+    this.lifeScore = this.score;
+    if (this.frenzyLock) {
+      this.nextLifeAt += gained;   // la jauge reste figée là où la FURIE l'a trouvée
+      if (!this.frenzy && !this.table.multiball) this.frenzyLock = false;
+      return;
+    }
     while (this.score >= this.nextLifeAt) {
       const m = this.nextLifeAt;
       this.nextLifeAt += RULES.lifeEvery;
+      this.lifeTick++;
       if (this.ballsLeft < this.maxBalls) {
         this.ballsLeft++;
         this.sfx('extraBall');
         this.banner('VIE SUPPLÉMENTAIRE', `${fmt(m)} points atteints`, '#5dff8f', 2.4, 'extraBall');
         this.say('extraLife');
         this.ui.flashBalls();
-      } else this.pendingFrenzy++;
+      } else this.pendingFrenzy = 1;   // jamais de file d'attente de FURIES
     }
     if (this.pendingFrenzy > 0 && !this.frenzy) this._tryFrenzy();
   }
@@ -327,7 +345,7 @@ export class Game {
     if (this.scene !== 'table' || this.betweenBalls > 0 || t.lockedOut || t.magnet || t.shooterBall) return;
     if (t.barrels.L.anim || t.barrels.R.anim || t.anims.length) return;
     if (!t.world.balls.some(b => b.state === 'free')) return;
-    this.pendingFrenzy--;
+    this.pendingFrenzy = 0;
     this.startFrenzy();
   }
 
@@ -338,6 +356,7 @@ export class Game {
     const t = this.table;
     const inPlay = t.ballsInPlay();
     const add = Math.max(0, RULES.frenzyBalls - inPlay);
+    this.frenzyLock = true;
     this.frenzy = { intro: 0.4 + add * 0.17, t: RULES.frenzyTime, dur: RULES.frenzyTime, need: RULES.frenzyKeep, kept: inPlay + add };
     t.spawnFrenzyBalls(add);
     t.multiball = true; t.multiballLit = false;
