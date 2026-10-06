@@ -10637,7 +10637,7 @@ function hash(s) {
 // Caractère de chaque IA. lo/hi : registre (Hz) ; step : durée d'une hauteur tenue (s) ;
 // wave : forme d'onde ; lp : passe-bas de la chaîne (0 = aucun) ; ring : modulation en anneau
 // [fréquence, part] (timbre métallique) ; fm : fréquence du « brrip » ; words : poids des mots ;
-// level : niveau de sortie.
+// regular : babil à pas réguliers (machine froide) ; fall : babil qui descend ; level : niveau.
 const VOICE_STYLES = {
   lumen: { lo: 1300, hi: 2700, step: [0.055, 0.09], wave: 'sine', lp: 0, ring: null, fm: 70, level: 0.12,
     words: { burble: 0.45, dweet: 0.15, bwoo: 0.08, trill: 0.17, blip: 0.15 } },
@@ -10661,13 +10661,17 @@ function words(text, key, S, R) {
     if (w === 'burble') {
       let prev = 0;
       const n = 3 + Math.floor(R() * 5);
+      const pitches = [];
       for (let i = 0; i < n; i++) {
         let f = rand();
         // pas de sauts minuscules : au moins deux demi-tons d'écart
         for (let k = 0; k < 4 && prev && Math.abs(Math.log2(f / prev)) < 2 / 12; k++) f = rand();
         prev = f;
-        seg.push({ f, d: between(S.step[0], S.step[1]), brrip: true, gate: i < n - 1 });
+        pitches.push(f);
       }
+      if (S.fall) pitches.sort((a, b) => b - a);
+      const d = between(S.step[0], S.step[1]);
+      pitches.forEach((f, i) => seg.push({ f, d: S.regular ? d : between(S.step[0], S.step[1]), brrip: true, gate: i < n - 1 }));
     } else if (w === 'dweet') {
       const f = S.lo * between(1, 1.4);
       seg.push({ f, to: f * between(1.6, 2.2), d: between(0.09, 0.16), brrip: true });
