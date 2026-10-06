@@ -29,6 +29,7 @@ export function drawPlate(g, kind = 'table') {
     reactor: ['#1a1008', '#24160b', '#ffae2a'], defense: ['#081a12', '#0c2419', '#5dff8f'],
     core: ['#1c070e', '#290b16', '#ff3d6e'], tag: ['#14160a', '#1c1f0c', '#e6ff3d'],
     vault: ['#120a22', '#1a0f30', '#b07bff'], arena: ['#080e24', '#0c1534', '#4d7dff'],
+    maze: ['#0c111c', '#121a28', '#cfe0ff'], bugs: ['#1a0a14', '#24101d', '#ff6ab4'],
   }[kind] || ['#0d1328', '#121a33', CYAN];
   // caisson
   g.fillStyle = '#070a14';

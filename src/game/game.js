@@ -12,12 +12,13 @@ import { GraffitiGame } from '../minigames/graffiti.js';
 import { DefenseGame } from '../minigames/defense.js';
 import { VaultGame } from '../minigames/vault.js';
 import { CyberballGame } from '../minigames/cyberball.js';
+import { BugsGame } from '../minigames/bugs.js';
 import { DuelGame } from '../minigames/duel.js';
 import { Scores } from '../util/storage.js';
 
 const MINIGAMES = {
   hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame,
-  defense: DefenseGame, vault: VaultGame, arena: CyberballGame, core: DuelGame,
+  defense: DefenseGame, vault: VaultGame, arena: CyberballGame, bugs: BugsGame, core: DuelGame,
 };
 
 // Statistiques de la partie (rapport de fin de session)

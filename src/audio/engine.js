@@ -272,10 +272,11 @@ export class AudioEngine {
 // sinon la musique procédurale. La multibille a sa propre piste sur le plateau.
 const TRACK_OF = {
   title: 'title', table: 'table', brick: 'hangar', reactor: 'reactor', tag: 'graffiti', defense: 'defense',
-  vault: 'vault', arena: 'arena', duel: 'duel', gameover: 'gameover',
+  vault: 'vault', arena: 'arena', duel: 'duel', gameover: 'gameover', maze: 'maze', bugs: 'bugs',
 };
 // morceau de remplacement tant qu'un nouveau morceau n'a pas été déposé dans assets/music
-const TRACK_FALLBACK = { graffiti: 'hangar', vault: 'reactor', arena: 'defense', frenzy: 'multiball' };
+// (CONDUITS et SERVEURS n'ont pas encore de morceau : ils empruntent ceux du COFFRE et de l'ARÈNE)
+const TRACK_FALLBACK = { graffiti: 'hangar', vault: 'reactor', arena: 'defense', frenzy: 'multiball', maze: 'vault', bugs: 'arena' };
 
 class MusicMix {
   constructor(proc, st, A) {

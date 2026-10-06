@@ -1,7 +1,7 @@
 // LE CADRAN : roue d'inserts au centre du plateau (d'après « The Machine: Bride of Pin·Bot »),
 // en version néon. Du centre vers l'extérieur :
 //   œil de LUMEN (moyeu) · anneau DANGER HAUTE TENSION · bobines d'aimant et inserts de fonctions ·
-//   six coins de secteurs (un par minijeu) et leurs 3 chevrons · jauge du million · lunette chromée.
+//   huit coins de secteurs (un par minijeu) et leurs 3 chevrons · jauge du million · lunette chromée.
 // Au-dessus, la colonne du NOYAU (inserts de taille décroissante) mène au portail central.
 // Tout ce qui est fixe est peint dans le calque du plateau ; par image, on pose des sprites
 // pré-rendus (lentilles allumées, jauge découpée) : pas de gros dégradé recalculé.
@@ -30,11 +30,12 @@ export const DIAL = {
 };
 
 // Coins de secteurs : moitié gauche = barillet gauche, moitié droite = barillet droit.
+// Quatre coins par moitié, dans l'ordre des faces du barillet (de haut en bas).
 const SECT = [
-  { id: 'hangar', ang: -120 }, { id: 'reactor', ang: 180 }, { id: 'tag', ang: 120 },
-  { id: 'defense', ang: -60 }, { id: 'vault', ang: 0 }, { id: 'arena', ang: 60 },
+  { id: 'hangar', ang: -112.5 }, { id: 'reactor', ang: -157.5 }, { id: 'tag', ang: 157.5 }, { id: 'maze', ang: 112.5 },
+  { id: 'defense', ang: -67.5 }, { id: 'vault', ang: -22.5 }, { id: 'arena', ang: 22.5 }, { id: 'bugs', ang: 67.5 },
 ];
-const SEC_HALF = 28.2;
+const SEC_HALF = 20.6;
 const FUNCS = [
   { id: 'multiball', ang: -120, col: C.magenta, label: 'MULTIBILLE', icon: 'balls' },
   { id: 'super', ang: -60, col: C.gold, label: 'SUPER JACKPOT', icon: 'star' },
@@ -153,6 +154,30 @@ export function icon(g, kind, x, y, s, col, rot = 0, lw = 1.2) {
       for (let k = 1; k < 4; k++) { g.moveTo(-s + k * s / 2, -s * 0.55); g.lineTo(-s + k * s / 2, s * 0.1); }
       g.moveTo(-s, -s * 0.2); g.lineTo(s, -s * 0.2); g.stroke();
       g.beginPath(); g.arc(0, s * 0.62, s * 0.26, 0, TAU); g.fill();
+      break;
+    case 'maze': {
+      // carré gravé d'un petit labyrinthe, entrée en bas, sortie en haut
+      g.rect(-s, -s, s * 2, s * 2); g.stroke();
+      g.beginPath();
+      g.moveTo(-s * 0.5, s); g.lineTo(-s * 0.5, -s * 0.4); g.lineTo(s * 0.1, -s * 0.4);
+      g.moveTo(s * 0.5, -s); g.lineTo(s * 0.5, s * 0.4); g.lineTo(-s * 0.1, s * 0.4);
+      g.moveTo(-s, -s * 0.1); g.lineTo(-s * 0.75, -s * 0.1);
+      g.stroke();
+      g.beginPath(); g.arc(-s * 0.75, s * 0.68, s * 0.17, 0, TAU); g.fill();
+      break;
+    }
+    case 'bug':
+      // corps, tête, six pattes, antennes
+      g.ellipse(0, s * 0.18, s * 0.46, s * 0.62, 0, 0, TAU); g.fill();
+      g.beginPath(); g.arc(0, -s * 0.58, s * 0.26, 0, TAU); g.fill();
+      g.beginPath();
+      for (const dy of [-0.05, 0.25, 0.55]) {
+        g.moveTo(-s * 0.42, s * dy); g.lineTo(-s * 0.9, s * (dy - 0.18));
+        g.moveTo(s * 0.42, s * dy); g.lineTo(s * 0.9, s * (dy - 0.18));
+      }
+      g.moveTo(-s * 0.12, -s * 0.8); g.lineTo(-s * 0.38, -s * 1.05);
+      g.moveTo(s * 0.12, -s * 0.8); g.lineTo(s * 0.38, -s * 1.05);
+      g.stroke();
       break;
     case 'balls':
       for (const [bx, by] of [[-0.5, 0.32], [0.5, 0.32], [0, -0.48]]) { g.beginPath(); g.arc(bx * s, by * s, s * 0.38, 0, TAU); g.fill(); }

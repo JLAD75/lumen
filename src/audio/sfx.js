@@ -7,6 +7,7 @@ import { SFX_SINGULARITY } from './sfx-singularity.js';
 import { SFX_GRAFFITI } from './sfx-graffiti.js';
 import { SFX_VAULT } from './sfx-vault.js';
 import { SFX_CYBERBALL } from './sfx-cyberball.js';
+import { SFX_BUGS } from './sfx-bugs.js';
 
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -562,7 +563,7 @@ export const SFX = {
   // ---------------------------------------------------------------- minijeux
   minigameStart(A, sector) {
     const t = A.now, o = A.out(0, null, 0.5);
-    const roots = { hangar: 72, reactor: 62, tag: 67, defense: 64, vault: 59, arena: 65, core: 57 };
+    const roots = { hangar: 72, reactor: 62, tag: 67, maze: 60, defense: 64, vault: 59, arena: 65, bugs: 69, core: 57 };
     const r = roots[sector] || 69;
     const iv = sector === 'core' ? [0, 1, 7, 12] : sector === 'hangar' ? [0, 4, 7, 12] : [0, 3, 7, 12];
     iv.forEach((d, k) => A.tone({ type: 'sawtooth', f: nf(r + d), t: t + k * 0.09, dur: 0.35, gain: 0.06, filter: 'lowpass', ff: 2500, dest: o }));
@@ -709,4 +710,4 @@ export const SFX = {
 };
 
 // sons des minijeux définis dans leurs propres modules
-Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL);
+Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL, SFX_BUGS);

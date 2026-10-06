@@ -1,7 +1,7 @@
-// Rampes à barillet : chaque rampe montante est un prisme triangulaire rotatif (comme les
-// panneaux publicitaires « trivision »). Chaque face est une rampe différente, avec sa matière,
-// et mène à un minijeu différent (gauche : HANGAR, RÉACTEUR, GRAFFITI ; droite : DÉFENSE,
-// COFFRE, ARÈNE). La géométrie physique ne change pas : le barillet n'est qu'un habillage.
+// Rampes à barillet : chaque rampe montante est un prisme rotatif à section carrée (comme les
+// panneaux publicitaires rotatifs). Chaque face est une rampe différente, avec sa matière,
+// et mène à un minijeu différent (gauche : HANGAR, RÉACTEUR, GRAFFITI, CONDUITS ; droite :
+// DÉFENSE, COFFRE, ARÈNE, SERVEURS). La géométrie physique ne change pas : le barillet n'est qu'un habillage.
 // Par image : projection du prisme vu de dessus (faces visibles, largeur projetée, ombrage par
 // face, arêtes chromées), verrous et vérins, carter à engrenage, gyrophare, vapeur, étincelles
 // aux crans, volet d'entrée, chevrons de la face et jauge d'usure.
@@ -18,7 +18,8 @@ const C = NEON;
 const DISPLAY = '"Orbitron", "Rajdhani", sans-serif';
 const RAD = Math.PI / 180;
 const W = 46;                        // largeur d'une face = largeur du couloir de rampe
-const PR = W / Math.sqrt(3);         // rayon du prisme (section en triangle équilatéral)
+// section du prisme : polygone régulier à N faces (N = nombre de faces du barillet)
+const prism = (n) => ({ step: 360 / n, half: 180 / n, R: W / 2 / Math.cos(Math.PI / n) });
 const LIGHT = -35;                   // lumière du haut à gauche (angle de normale de face)
 const LIT0 = Math.cos(-LIGHT * RAD); // éclairement de la face présentée (référence)
 
@@ -27,8 +28,8 @@ export const BARREL_GEO = {
   L: { side: 'L', x0: T.rampL.x0, x1: T.rampL.x1, y0: T.rampL.deckY - 6, y1: T.rampL.mouthY, spin: -1, hx: 112.5, out: -1, flareIn: T.rampL.flareOut, flareOut: T.rampL.flare, clamps: [170, 300, 440] },
   R: { side: 'R', x0: T.rampR.upX0, x1: T.rampR.upX1, y0: T.rampR.topY + 2, y1: T.rampR.mouthY, spin: 1, hx: 449.5, out: 1, flareIn: T.rampR.flare, flareOut: T.rampR.flareOut, clamps: [300, 440] },
 };
-// carter (dans la poche entre orbite et rampe) : gyrophare, engrenage, voyants des 3 faces
-const HOUSE = { y0: 337, y1: 423, w: 19, gyro: 346, gear: 363, lamps: [382, 395, 408] };
+// carter (dans la poche entre orbite et rampe) : gyrophare, engrenage, voyants des 4 faces
+const HOUSE = { y0: 337, y1: 423, w: 19, gyro: 346, gear: 363, lamps: [379, 389, 399, 409] };
 const CHEV_Y = [441, 423, 405];      // chevrons de progression (le premier en bas)
 const WEAR_Y = 459;                  // jauge d'usure (passages avant rotation)
 
@@ -255,6 +256,70 @@ const FACE_ART = {
     g.strokeStyle = rgba(col, 0.75); g.lineWidth = 1; g.stroke();
     vname(g, 'ARÈNE', cx, 333, 9, '#dfe8ff');
   },
+
+  // tôle chromée brossée, labyrinthe gravé, rivets
+  maze(g, x0, y0, x1, y1, col) {
+    const cx = (x0 + x1) / 2, w = x1 - x0;
+    const base = g.createLinearGradient(x0, 0, x1, 0);
+    base.addColorStop(0, '#2a3140'); base.addColorStop(0.35, '#7d8aa3'); base.addColorStop(0.55, '#5b6780'); base.addColorStop(1, '#1e2430');
+    g.fillStyle = base; g.fillRect(x0, y0, w, y1 - y0);
+    grain(g, x0, y0, x1, y1, 500, 7, 0.06);
+    // labyrinthe gravé : grille de cellules, murs tirés au sort (graine fixe)
+    const rnd = mulberry32(57), cs = 7, ox = x0 + 9, cols = Math.floor((w - 18) / cs);
+    const walls = new Path2D();
+    for (let y = y0 + 8; y < y1 - 14; y += cs) {
+      for (let c = 0; c < cols; c++) {
+        const x = ox + c * cs;
+        if (rnd() < 0.5) { walls.moveTo(x, y); walls.lineTo(x + cs, y); } else { walls.moveTo(x, y); walls.lineTo(x, y + cs); }
+      }
+    }
+    g.lineCap = 'square';
+    g.save(); g.translate(0.5, 0.6); g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1.1; g.stroke(walls); g.restore();
+    g.strokeStyle = 'rgba(6,10,20,0.75)'; g.lineWidth = 1.1; g.stroke(walls);
+    for (const [x, dir] of [[x0, 1], [x1, -1]]) {
+      chrome(g, [[x + 3 * dir, y0], [x + 3 * dir, y1]], 3.2, { shadow: false, glow: col });
+      for (let y = y0 + 14; y < y1 - 6; y += 30) screw(g, x + 7.5 * dir, y, 1.1);
+    }
+    // plaques : icône et nom
+    rrect(g, cx - 13, 157, 26, 26, 4); g.fillStyle = '#0b1220'; g.fill();
+    g.strokeStyle = col; g.lineWidth = 1.4; g.stroke();
+    icon(g, 'maze', cx, 170, 8, col, 0, 1.2);
+    rrect(g, cx - 9.5, 205, 19, 112, 4); g.fillStyle = '#0b1220'; g.fill();
+    g.strokeStyle = rgba(col, 0.75); g.lineWidth = 1; g.stroke();
+    vname(g, 'CONDUITS', cx, 261, 8.2, '#eef4ff');
+    paint(g, 'GAINE 12', cx, 100, 5, rgba(col, 0.9), { font: DISPLAY, rot: -Math.PI / 2 });
+  },
+
+  // baie de serveurs : rails percés, tiroirs 1U et leurs voyants
+  bugs(g, x0, y0, x1, y1, col) {
+    const cx = (x0 + x1) / 2, w = x1 - x0;
+    g.fillStyle = '#0c0710'; g.fillRect(x0, y0, w, y1 - y0);
+    const rnd = mulberry32(23), leds = ['#5dff8f', col, '#ffb52e', '#5dff8f', '#29e3ff'];
+    for (let y = y0 + 4; y < y1 - 6; y += 13) {
+      const ug = g.createLinearGradient(0, y, 0, y + 11);
+      ug.addColorStop(0, '#2a2232'); ug.addColorStop(1, '#141018');
+      g.fillStyle = ug; g.fillRect(x0 + 8, y, w - 16, 11);
+      g.fillStyle = 'rgba(0,0,0,0.6)';
+      for (let k = 0; k < 4; k++) g.fillRect(x0 + 18 + k * 4, y + 3, 2, 5);
+      for (let k = 0; k < 3; k++) {
+        const c = leds[Math.floor(rnd() * leds.length)];
+        g.fillStyle = rgba(c, 0.25 + rnd() * 0.75); g.fillRect(x1 - 15 + k * 3.2, y + 4.5, 1.8, 1.8);
+      }
+    }
+    for (const [x, dir] of [[x0, 1], [x1, -1]]) {
+      g.fillStyle = '#1c1622'; g.fillRect(Math.min(x, x + 7 * dir), y0, 7, y1 - y0);
+      g.fillStyle = rgba(col, 0.85); g.fillRect(x + 6.5 * dir - 0.6, y0, 1.2, y1 - y0);
+      g.fillStyle = '#05030a';
+      for (let y = y0 + 5; y < y1 - 3; y += 6.5) g.fillRect(x + 2.5 * dir - 1, y, 2, 2);
+    }
+    rrect(g, cx - 13, 241, 26, 28, 5); g.fillStyle = '#16061a'; g.fill();
+    g.strokeStyle = col; g.lineWidth = 1.4; g.stroke();
+    icon(g, 'bug', cx, 255, 8.5, col, 0, 1.2);
+    rrect(g, cx - 9.5, 284, 19, 92, 4); g.fillStyle = '#16061a'; g.fill();
+    g.strokeStyle = rgba(col, 0.75); g.lineWidth = 1; g.stroke();
+    vname(g, 'SERVEURS', cx, 330, 8, '#ffe3f1');
+    paint(g, 'RACK B4', cx, 230, 4.6, rgba(col, 0.85), { font: DISPLAY });
+  },
 };
 
 export class BarrelArt {
@@ -317,7 +382,7 @@ export class BarrelArt {
       }
       this._house(g, G, table.barrels[side].faces);
     }
-    // rampe droite : virage en U et descente en fil, communs aux trois faces
+    // rampe droite : virage en U et descente en fil, communs à toutes les faces
     const g2 = T.rampR;
     const up = new Path2D();
     up.moveTo(g2.upX0, g2.topY + 2); up.arc(g2.turnCx, g2.topY, g2.turnR1, Math.PI, 0);
@@ -402,12 +467,12 @@ export class BarrelArt {
   // arêtes chromées, paliers, mâchoires des verrous (open : 0 engagées → 1 écartées), engrenage.
   _prism(ctx, G, faces, rot, open, jx, overlay) {
     const cx = (G.x0 + G.x1) / 2, h = G.y1 - G.y0;
-    const vis = [];
-    for (let i = 0; i < 3; i++) {
-      let ph = G.spin * (i - rot) * 120;
+    const P = prism(faces.length), vis = [];
+    for (let i = 0; i < faces.length; i++) {
+      let ph = G.spin * (i - rot) * P.step;
       ph = ((ph + 180) % 360 + 360) % 360 - 180;
       if (Math.cos(ph * RAD) < 0.02) continue;
-      vis.push({ i, ph, xa: cx + jx + PR * Math.sin((ph - 60) * RAD), xb: cx + jx + PR * Math.sin((ph + 60) * RAD) });
+      vis.push({ i, ph, xa: cx + jx + P.R * Math.sin((ph - P.half) * RAD), xb: cx + jx + P.R * Math.sin((ph + P.half) * RAD) });
     }
     for (const f of vis) {
       const id = faces[f.i], sp = this._face(id, G), w = f.xb - f.xa;
@@ -449,7 +514,7 @@ export class BarrelArt {
         ctx.fillStyle = open > 0.05 ? C.amber : '#4a5368'; ctx.fillRect(s < 0 ? hx + 1.6 : hx - 3.9, y - 2, 2.3, 4);
       }
     }
-    // engrenage du carter, entraîné par le barillet (rapport 3)
+    // engrenage du carter, entraîné par le barillet (un tour par face)
     ctx.save();
     ctx.translate(G.hx, HOUSE.gear); ctx.rotate(G.spin * rot * TAU);
     ctx.fillStyle = '#9aa6bd'; ctx.fill(gear(), 'evenodd');
@@ -499,7 +564,7 @@ export class BarrelArt {
     HOUSE.lamps.forEach((ly, i) => {
       const col = SECTORS[v.faces[i]].color, st = v.states[i];
       let k = 0;
-      if (active) k = i === (v.idx + 1) % 3 ? (Math.sin(t * 16) > 0 ? 1 : 0.2) : i === v.idx ? 0.35 : 0;
+      if (active) k = i === (v.idx + 1) % v.faces.length ? (Math.sin(t * 16) > 0 ? 1 : 0.2) : i === v.idx ? 0.35 : 0;
       else if (i === v.idx) return;          // voyant de la face présentée : dans le sprite au repos
       else if (st === 'armed' || st === 'ready') k = Math.sin(t * 5) > 0 ? 0.8 : 0.2;
       else if (st === 'done') k = 0.3;

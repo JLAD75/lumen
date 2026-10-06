@@ -5,7 +5,7 @@ import { DMD } from './dmd.js';
 import { GameOverSeq, scoreRows } from './gameover.js';
 
 const $ = (s) => document.querySelector(s);
-const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', tag: '✺', defense: '⛨', vault: '◈', arena: '◎', core: '☠' };
+const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', tag: '✺', maze: '⊞', defense: '⛨', vault: '◈', arena: '◎', bugs: '✲', core: '☠' };
 const STATE_TXT = { locked: 'VERROUILLÉ', prep: 'EN PRÉPARATION', armed: 'QUALIFIÉ', ready: 'ACCESSIBLE', hold: 'EN ATTENTE', done: 'RÉACTIVÉ' };
 
 // Interface DOM : mise en page adaptative (portrait / paysage), HUD, bannières, écrans.

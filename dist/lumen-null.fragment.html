@@ -1173,8 +1173,8 @@ const COLORS = {
   steel: '#8fa3c8',
 };
 
-// Les secteurs de la station. Chacun correspond à un minijeu. Les six premiers sont
-// portés par les barillets des rampes (3 faces par rampe) ; le NOYAU est au portail central.
+// Les secteurs de la station. Chacun correspond à un minijeu. Les huit premiers sont
+// portés par les barillets des rampes (4 faces par rampe) ; le NOYAU est au portail central.
 const SECTORS = {
   hangar:  { id: 'hangar',  name: 'HANGAR',   game: 'Casse-briques orbital', color: '#29d9ff', icon: 'brick',  barrel: 'L' },
   reactor: { id: 'reactor', name: 'RÉACTEUR', game: 'Singularité',           color: '#ffae2a', icon: 'atom',   barrel: 'L' },
@@ -1182,11 +1182,13 @@ const SECTORS = {
   defense: { id: 'defense', name: 'DÉFENSE',  game: 'Défense de la station', color: '#5dff8f', icon: 'shield', barrel: 'R' },
   vault:   { id: 'vault',   name: 'COFFRE',   game: 'Braquage du coffre',    color: '#b07bff', icon: 'vault',  barrel: 'R' },
   arena:   { id: 'arena',   name: 'ARÈNE',    game: 'Cyberball',             color: '#4d7dff', icon: 'goal',   barrel: 'R' },
+  maze:    { id: 'maze',    name: 'CONDUITS', game: 'Labyrinthe gyroscopique', color: '#cfe0ff', icon: 'maze', barrel: 'L' },
+  bugs:    { id: 'bugs',    name: 'SERVEURS', game: 'Chasse aux bugs',       color: '#ff6ab4', icon: 'bug',    barrel: 'R' },
   core:    { id: 'core',    name: 'NOYAU',    game: 'Duel contre NULL',      color: '#ff3d6e', icon: 'skull' },
 };
 
 // Faces des barillets (rampe gauche → pont, rampe droite → retour), dans l'ordre de rotation.
-const BARRELS = { L: ['hangar', 'reactor', 'tag'], R: ['defense', 'vault', 'arena'] };
+const BARRELS = { L: ['hangar', 'reactor', 'tag', 'maze'], R: ['defense', 'vault', 'arena', 'bugs'] };
 const MINI_SECTORS = [...BARRELS.L, ...BARRELS.R];
 
 const RULES = {
@@ -2222,7 +2224,7 @@ __mod['src/render/dialArt.js'] = (function () {
 // LE CADRAN : roue d'inserts au centre du plateau (d'après « The Machine: Bride of Pin·Bot »),
 // en version néon. Du centre vers l'extérieur :
 //   œil de LUMEN (moyeu) · anneau DANGER HAUTE TENSION · bobines d'aimant et inserts de fonctions ·
-//   six coins de secteurs (un par minijeu) et leurs 3 chevrons · jauge du million · lunette chromée.
+//   huit coins de secteurs (un par minijeu) et leurs 3 chevrons · jauge du million · lunette chromée.
 // Au-dessus, la colonne du NOYAU (inserts de taille décroissante) mène au portail central.
 // Tout ce qui est fixe est peint dans le calque du plateau ; par image, on pose des sprites
 // pré-rendus (lentilles allumées, jauge découpée) : pas de gros dégradé recalculé.
@@ -2251,11 +2253,12 @@ const DIAL = {
 };
 
 // Coins de secteurs : moitié gauche = barillet gauche, moitié droite = barillet droit.
+// Quatre coins par moitié, dans l'ordre des faces du barillet (de haut en bas).
 const SECT = [
-  { id: 'hangar', ang: -120 }, { id: 'reactor', ang: 180 }, { id: 'tag', ang: 120 },
-  { id: 'defense', ang: -60 }, { id: 'vault', ang: 0 }, { id: 'arena', ang: 60 },
+  { id: 'hangar', ang: -112.5 }, { id: 'reactor', ang: -157.5 }, { id: 'tag', ang: 157.5 }, { id: 'maze', ang: 112.5 },
+  { id: 'defense', ang: -67.5 }, { id: 'vault', ang: -22.5 }, { id: 'arena', ang: 22.5 }, { id: 'bugs', ang: 67.5 },
 ];
-const SEC_HALF = 28.2;
+const SEC_HALF = 20.6;
 const FUNCS = [
   { id: 'multiball', ang: -120, col: C.magenta, label: 'MULTIBILLE', icon: 'balls' },
   { id: 'super', ang: -60, col: C.gold, label: 'SUPER JACKPOT', icon: 'star' },
@@ -2374,6 +2377,30 @@ function icon(g, kind, x, y, s, col, rot = 0, lw = 1.2) {
       for (let k = 1; k < 4; k++) { g.moveTo(-s + k * s / 2, -s * 0.55); g.lineTo(-s + k * s / 2, s * 0.1); }
       g.moveTo(-s, -s * 0.2); g.lineTo(s, -s * 0.2); g.stroke();
       g.beginPath(); g.arc(0, s * 0.62, s * 0.26, 0, TAU); g.fill();
+      break;
+    case 'maze': {
+      // carré gravé d'un petit labyrinthe, entrée en bas, sortie en haut
+      g.rect(-s, -s, s * 2, s * 2); g.stroke();
+      g.beginPath();
+      g.moveTo(-s * 0.5, s); g.lineTo(-s * 0.5, -s * 0.4); g.lineTo(s * 0.1, -s * 0.4);
+      g.moveTo(s * 0.5, -s); g.lineTo(s * 0.5, s * 0.4); g.lineTo(-s * 0.1, s * 0.4);
+      g.moveTo(-s, -s * 0.1); g.lineTo(-s * 0.75, -s * 0.1);
+      g.stroke();
+      g.beginPath(); g.arc(-s * 0.75, s * 0.68, s * 0.17, 0, TAU); g.fill();
+      break;
+    }
+    case 'bug':
+      // corps, tête, six pattes, antennes
+      g.ellipse(0, s * 0.18, s * 0.46, s * 0.62, 0, 0, TAU); g.fill();
+      g.beginPath(); g.arc(0, -s * 0.58, s * 0.26, 0, TAU); g.fill();
+      g.beginPath();
+      for (const dy of [-0.05, 0.25, 0.55]) {
+        g.moveTo(-s * 0.42, s * dy); g.lineTo(-s * 0.9, s * (dy - 0.18));
+        g.moveTo(s * 0.42, s * dy); g.lineTo(s * 0.9, s * (dy - 0.18));
+      }
+      g.moveTo(-s * 0.12, -s * 0.8); g.lineTo(-s * 0.38, -s * 1.05);
+      g.moveTo(s * 0.12, -s * 0.8); g.lineTo(s * 0.38, -s * 1.05);
+      g.stroke();
       break;
     case 'balls':
       for (const [bx, by] of [[-0.5, 0.32], [0.5, 0.32], [0, -0.48]]) { g.beginPath(); g.arc(bx * s, by * s, s * 0.38, 0, TAU); g.fill(); }
@@ -3466,8 +3493,9 @@ const SHOT_IDS = ['lorbit', 'lramp', 'portal', 'rramp', 'rorbit'];
 const SHOT_BASE = { lorbit: 4000, lramp: 6000, portal: 3000, rramp: 5000, rorbit: 4000 };
 
 // Plateau principal : physique + règles. Trois niveaux : plateau, rampes, pont supérieur.
-// Barillets : chaque rampe est un prisme à 3 faces ; la face présentée désigne le minijeu
-// au bout de la rampe (gauche : HANGAR, RÉACTEUR, GRAFFITI ; droite : DÉFENSE, COFFRE, ARÈNE).
+// Barillets : chaque rampe est un prisme à 4 faces ; la face présentée désigne le minijeu
+// au bout de la rampe (gauche : HANGAR, RÉACTEUR, GRAFFITI, CONDUITS ; droite : DÉFENSE, COFFRE,
+// ARÈNE, SERVEURS).
 //   - chaque passage sur la rampe allume un chevron de la face (3 chevrons = minijeu accessible,
 //     le passage suivant l'emporte) ; banque gauche → face gauche, cibles tombantes → face droite,
 //     cellules du pont et UPLINK → les deux faces ;
@@ -3477,7 +3505,7 @@ const SHOT_BASE = { lorbit: 4000, lramp: 6000, portal: 3000, rramp: 5000, rorbit
 // Pivot du barillet (s) : déverrouillage, rotation en trois crans, verrouillage.
 const PIVOT = { unlock: 0.45, turn: 1.6, lock: 0.45 };
 const PIVOT_DUR = PIVOT.unlock + PIVOT.turn + PIVOT.lock;
-// rotation « robotique » : trois crans de 40° séparés de courtes pauses
+// rotation « robotique » : trois crans (un quart de tour en tout) séparés de courtes pauses
 function pivotEase(u) {
   const n = 3, move = 0.26, pause = (1 - n * move) / (n - 1);
   let p = 0;
@@ -4275,7 +4303,7 @@ class Table {
   }
 
   // Vue d'un barillet pour le rendu. rot = face présentée, fractionnaire pendant la rotation
-  // (rot % 3 → indice de face) ; phase : idle | unlock | turn | lock, k = avancement de la phase.
+  // (rot % nombre de faces → indice de face) ; phase : idle | unlock | turn | lock, k = avancement de la phase.
   barrelView(side) {
     const B = this.barrels[side], a = B.anim;
     let rot = B.idx, phase = 'idle', k = 0;
@@ -4786,10 +4814,10 @@ return { SHOT_IDS, PIVOT, pivotEase, Table };
 
 // ===== src/render/barrelArt.js =====
 __mod['src/render/barrelArt.js'] = (function () {
-// Rampes à barillet : chaque rampe montante est un prisme triangulaire rotatif (comme les
-// panneaux publicitaires « trivision »). Chaque face est une rampe différente, avec sa matière,
-// et mène à un minijeu différent (gauche : HANGAR, RÉACTEUR, GRAFFITI ; droite : DÉFENSE,
-// COFFRE, ARÈNE). La géométrie physique ne change pas : le barillet n'est qu'un habillage.
+// Rampes à barillet : chaque rampe montante est un prisme rotatif à section carrée (comme les
+// panneaux publicitaires rotatifs). Chaque face est une rampe différente, avec sa matière,
+// et mène à un minijeu différent (gauche : HANGAR, RÉACTEUR, GRAFFITI, CONDUITS ; droite :
+// DÉFENSE, COFFRE, ARÈNE, SERVEURS). La géométrie physique ne change pas : le barillet n'est qu'un habillage.
 // Par image : projection du prisme vu de dessus (faces visibles, largeur projetée, ombrage par
 // face, arêtes chromées), verrous et vérins, carter à engrenage, gyrophare, vapeur, étincelles
 // aux crans, volet d'entrée, chevrons de la face et jauge d'usure.
@@ -4806,7 +4834,8 @@ const C = NEON;
 const DISPLAY = '"Orbitron", "Rajdhani", sans-serif';
 const RAD = Math.PI / 180;
 const W = 46;                        // largeur d'une face = largeur du couloir de rampe
-const PR = W / Math.sqrt(3);         // rayon du prisme (section en triangle équilatéral)
+// section du prisme : polygone régulier à N faces (N = nombre de faces du barillet)
+const prism = (n) => ({ step: 360 / n, half: 180 / n, R: W / 2 / Math.cos(Math.PI / n) });
 const LIGHT = -35;                   // lumière du haut à gauche (angle de normale de face)
 const LIT0 = Math.cos(-LIGHT * RAD); // éclairement de la face présentée (référence)
 
@@ -4815,8 +4844,8 @@ const BARREL_GEO = {
   L: { side: 'L', x0: T.rampL.x0, x1: T.rampL.x1, y0: T.rampL.deckY - 6, y1: T.rampL.mouthY, spin: -1, hx: 112.5, out: -1, flareIn: T.rampL.flareOut, flareOut: T.rampL.flare, clamps: [170, 300, 440] },
   R: { side: 'R', x0: T.rampR.upX0, x1: T.rampR.upX1, y0: T.rampR.topY + 2, y1: T.rampR.mouthY, spin: 1, hx: 449.5, out: 1, flareIn: T.rampR.flare, flareOut: T.rampR.flareOut, clamps: [300, 440] },
 };
-// carter (dans la poche entre orbite et rampe) : gyrophare, engrenage, voyants des 3 faces
-const HOUSE = { y0: 337, y1: 423, w: 19, gyro: 346, gear: 363, lamps: [382, 395, 408] };
+// carter (dans la poche entre orbite et rampe) : gyrophare, engrenage, voyants des 4 faces
+const HOUSE = { y0: 337, y1: 423, w: 19, gyro: 346, gear: 363, lamps: [379, 389, 399, 409] };
 const CHEV_Y = [441, 423, 405];      // chevrons de progression (le premier en bas)
 const WEAR_Y = 459;                  // jauge d'usure (passages avant rotation)
 
@@ -5043,6 +5072,70 @@ const FACE_ART = {
     g.strokeStyle = rgba(col, 0.75); g.lineWidth = 1; g.stroke();
     vname(g, 'ARÈNE', cx, 333, 9, '#dfe8ff');
   },
+
+  // tôle chromée brossée, labyrinthe gravé, rivets
+  maze(g, x0, y0, x1, y1, col) {
+    const cx = (x0 + x1) / 2, w = x1 - x0;
+    const base = g.createLinearGradient(x0, 0, x1, 0);
+    base.addColorStop(0, '#2a3140'); base.addColorStop(0.35, '#7d8aa3'); base.addColorStop(0.55, '#5b6780'); base.addColorStop(1, '#1e2430');
+    g.fillStyle = base; g.fillRect(x0, y0, w, y1 - y0);
+    grain(g, x0, y0, x1, y1, 500, 7, 0.06);
+    // labyrinthe gravé : grille de cellules, murs tirés au sort (graine fixe)
+    const rnd = mulberry32(57), cs = 7, ox = x0 + 9, cols = Math.floor((w - 18) / cs);
+    const walls = new Path2D();
+    for (let y = y0 + 8; y < y1 - 14; y += cs) {
+      for (let c = 0; c < cols; c++) {
+        const x = ox + c * cs;
+        if (rnd() < 0.5) { walls.moveTo(x, y); walls.lineTo(x + cs, y); } else { walls.moveTo(x, y); walls.lineTo(x, y + cs); }
+      }
+    }
+    g.lineCap = 'square';
+    g.save(); g.translate(0.5, 0.6); g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1.1; g.stroke(walls); g.restore();
+    g.strokeStyle = 'rgba(6,10,20,0.75)'; g.lineWidth = 1.1; g.stroke(walls);
+    for (const [x, dir] of [[x0, 1], [x1, -1]]) {
+      chrome(g, [[x + 3 * dir, y0], [x + 3 * dir, y1]], 3.2, { shadow: false, glow: col });
+      for (let y = y0 + 14; y < y1 - 6; y += 30) screw(g, x + 7.5 * dir, y, 1.1);
+    }
+    // plaques : icône et nom
+    rrect(g, cx - 13, 157, 26, 26, 4); g.fillStyle = '#0b1220'; g.fill();
+    g.strokeStyle = col; g.lineWidth = 1.4; g.stroke();
+    icon(g, 'maze', cx, 170, 8, col, 0, 1.2);
+    rrect(g, cx - 9.5, 205, 19, 112, 4); g.fillStyle = '#0b1220'; g.fill();
+    g.strokeStyle = rgba(col, 0.75); g.lineWidth = 1; g.stroke();
+    vname(g, 'CONDUITS', cx, 261, 8.2, '#eef4ff');
+    paint(g, 'GAINE 12', cx, 100, 5, rgba(col, 0.9), { font: DISPLAY, rot: -Math.PI / 2 });
+  },
+
+  // baie de serveurs : rails percés, tiroirs 1U et leurs voyants
+  bugs(g, x0, y0, x1, y1, col) {
+    const cx = (x0 + x1) / 2, w = x1 - x0;
+    g.fillStyle = '#0c0710'; g.fillRect(x0, y0, w, y1 - y0);
+    const rnd = mulberry32(23), leds = ['#5dff8f', col, '#ffb52e', '#5dff8f', '#29e3ff'];
+    for (let y = y0 + 4; y < y1 - 6; y += 13) {
+      const ug = g.createLinearGradient(0, y, 0, y + 11);
+      ug.addColorStop(0, '#2a2232'); ug.addColorStop(1, '#141018');
+      g.fillStyle = ug; g.fillRect(x0 + 8, y, w - 16, 11);
+      g.fillStyle = 'rgba(0,0,0,0.6)';
+      for (let k = 0; k < 4; k++) g.fillRect(x0 + 18 + k * 4, y + 3, 2, 5);
+      for (let k = 0; k < 3; k++) {
+        const c = leds[Math.floor(rnd() * leds.length)];
+        g.fillStyle = rgba(c, 0.25 + rnd() * 0.75); g.fillRect(x1 - 15 + k * 3.2, y + 4.5, 1.8, 1.8);
+      }
+    }
+    for (const [x, dir] of [[x0, 1], [x1, -1]]) {
+      g.fillStyle = '#1c1622'; g.fillRect(Math.min(x, x + 7 * dir), y0, 7, y1 - y0);
+      g.fillStyle = rgba(col, 0.85); g.fillRect(x + 6.5 * dir - 0.6, y0, 1.2, y1 - y0);
+      g.fillStyle = '#05030a';
+      for (let y = y0 + 5; y < y1 - 3; y += 6.5) g.fillRect(x + 2.5 * dir - 1, y, 2, 2);
+    }
+    rrect(g, cx - 13, 241, 26, 28, 5); g.fillStyle = '#16061a'; g.fill();
+    g.strokeStyle = col; g.lineWidth = 1.4; g.stroke();
+    icon(g, 'bug', cx, 255, 8.5, col, 0, 1.2);
+    rrect(g, cx - 9.5, 284, 19, 92, 4); g.fillStyle = '#16061a'; g.fill();
+    g.strokeStyle = rgba(col, 0.75); g.lineWidth = 1; g.stroke();
+    vname(g, 'SERVEURS', cx, 330, 8, '#ffe3f1');
+    paint(g, 'RACK B4', cx, 230, 4.6, rgba(col, 0.85), { font: DISPLAY });
+  },
 };
 
 class BarrelArt {
@@ -5105,7 +5198,7 @@ class BarrelArt {
       }
       this._house(g, G, table.barrels[side].faces);
     }
-    // rampe droite : virage en U et descente en fil, communs aux trois faces
+    // rampe droite : virage en U et descente en fil, communs à toutes les faces
     const g2 = T.rampR;
     const up = new Path2D();
     up.moveTo(g2.upX0, g2.topY + 2); up.arc(g2.turnCx, g2.topY, g2.turnR1, Math.PI, 0);
@@ -5190,12 +5283,12 @@ class BarrelArt {
   // arêtes chromées, paliers, mâchoires des verrous (open : 0 engagées → 1 écartées), engrenage.
   _prism(ctx, G, faces, rot, open, jx, overlay) {
     const cx = (G.x0 + G.x1) / 2, h = G.y1 - G.y0;
-    const vis = [];
-    for (let i = 0; i < 3; i++) {
-      let ph = G.spin * (i - rot) * 120;
+    const P = prism(faces.length), vis = [];
+    for (let i = 0; i < faces.length; i++) {
+      let ph = G.spin * (i - rot) * P.step;
       ph = ((ph + 180) % 360 + 360) % 360 - 180;
       if (Math.cos(ph * RAD) < 0.02) continue;
-      vis.push({ i, ph, xa: cx + jx + PR * Math.sin((ph - 60) * RAD), xb: cx + jx + PR * Math.sin((ph + 60) * RAD) });
+      vis.push({ i, ph, xa: cx + jx + P.R * Math.sin((ph - P.half) * RAD), xb: cx + jx + P.R * Math.sin((ph + P.half) * RAD) });
     }
     for (const f of vis) {
       const id = faces[f.i], sp = this._face(id, G), w = f.xb - f.xa;
@@ -5237,7 +5330,7 @@ class BarrelArt {
         ctx.fillStyle = open > 0.05 ? C.amber : '#4a5368'; ctx.fillRect(s < 0 ? hx + 1.6 : hx - 3.9, y - 2, 2.3, 4);
       }
     }
-    // engrenage du carter, entraîné par le barillet (rapport 3)
+    // engrenage du carter, entraîné par le barillet (un tour par face)
     ctx.save();
     ctx.translate(G.hx, HOUSE.gear); ctx.rotate(G.spin * rot * TAU);
     ctx.fillStyle = '#9aa6bd'; ctx.fill(gear(), 'evenodd');
@@ -5287,7 +5380,7 @@ class BarrelArt {
     HOUSE.lamps.forEach((ly, i) => {
       const col = SECTORS[v.faces[i]].color, st = v.states[i];
       let k = 0;
-      if (active) k = i === (v.idx + 1) % 3 ? (Math.sin(t * 16) > 0 ? 1 : 0.2) : i === v.idx ? 0.35 : 0;
+      if (active) k = i === (v.idx + 1) % v.faces.length ? (Math.sin(t * 16) > 0 ? 1 : 0.2) : i === v.idx ? 0.35 : 0;
       else if (i === v.idx) return;          // voyant de la face présentée : dans le sprite au repos
       else if (st === 'armed' || st === 'ready') k = Math.sin(t * 5) > 0 ? 0.8 : 0.2;
       else if (st === 'done') k = 0.3;
@@ -5391,6 +5484,7 @@ function drawPlate(g, kind = 'table') {
     reactor: ['#1a1008', '#24160b', '#ffae2a'], defense: ['#081a12', '#0c2419', '#5dff8f'],
     core: ['#1c070e', '#290b16', '#ff3d6e'], tag: ['#14160a', '#1c1f0c', '#e6ff3d'],
     vault: ['#120a22', '#1a0f30', '#b07bff'], arena: ['#080e24', '#0c1534', '#4d7dff'],
+    maze: ['#0c111c', '#121a28', '#cfe0ff'], bugs: ['#1a0a14', '#24101d', '#ff6ab4'],
   }[kind] || ['#0d1328', '#121a33', CYAN];
   // caisson
   g.fillStyle = '#070a14';
@@ -9484,6 +9578,98 @@ const SFX_CYBERBALL = {
 return { SFX_CYBERBALL };
 })();
 
+// ===== src/audio/sfx-bugs.js =====
+__mod['src/audio/sfx-bugs.js'] = (function () {
+// Effets sonores procéduraux du minijeu CHASSE AUX BUGS (fusionnés dans SFX par sfx.js).
+// Chaque fonction reçoit le moteur (A) puis ses paramètres ; catégorie de polyphonie 'mg'.
+
+const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+const SFX_BUGS = {
+  // la trappe clignote : deux bips d'alerte
+  bugWarn(A, pan = 0) {
+    if (!A.throttle('bugWarn', 0.12) || !A.claim('mg', 0.2, 0.5)) return;
+    const t = A.now, o = A.out(pan, null, 0.1);
+    A.tone({ type: 'square', f: 1320, t, dur: 0.05, gain: 0.03, filter: 'lowpass', ff: 3000, dest: o });
+    A.tone({ type: 'square', f: 1320, t: t + 0.1, dur: 0.05, gain: 0.03, filter: 'lowpass', ff: 3000, dest: o });
+  },
+
+  // le bug sort : grésillement d'insecte (rafale de petits clics à hauteurs aléatoires)
+  bugUp(A, pan = 0, kind = 'normal') {
+    if (!A.claim('mg', 0.25, 0.8)) return;
+    const t = A.now, o = A.out(pan, null, 0.15);
+    const base = kind === 'gold' ? 2600 : kind === 'armor' ? 900 : kind === 'mini' ? 2200 : 1600;
+    for (let k = 0; k < 6; k++) A.tone({ type: 'square', f: base * rnd(0.8, 1.3), t: t + k * 0.022, dur: 0.018, gain: 0.025, filter: 'bandpass', ff: base, q: 3, dest: o });
+    A.noise({ f: base * 1.5, q: 5, t, dur: 0.14, gain: 0.03, dest: o });
+  },
+
+  // écrasé : giclée (bruit grave), craquement de carapace, petit « pop » qui monte avec le combo
+  bugSquash(A, pan = 0, mult = 1) {
+    if (!A.claim('mg', 0.3, 2)) return;
+    const t = A.now, o = A.out(pan, null, 0.25);
+    A.noise({ f: 900, f2: 180, filter: 'lowpass', q: 0.8, t, dur: 0.22, gain: 0.22, dest: o });
+    A.noise({ f: 4200, q: 2, t, dur: 0.04, gain: 0.12, dest: o });
+    A.tone({ f: 260, f2: 70, t, dur: 0.18, gain: 0.25, dest: o });
+    A.tone({ type: 'triangle', f: nf(72 + 2 * Math.min(5, mult)), t: t + 0.02, dur: 0.12, gain: 0.08, dest: o });
+  },
+
+  // coup sur un bug blindé : « clang » métallique
+  bugArmor(A, pan = 0) {
+    if (!A.claim('mg', 0.3, 1.5)) return;
+    const t = A.now, o = A.out(pan, null, 0.3);
+    A.bell({ f: 820, t, dur: 0.35, gain: 0.1, dest: o });
+    A.bell({ f: 1230, t, dur: 0.25, gain: 0.06, dest: o });
+    A.noise({ f: 3000, q: 3, t, dur: 0.05, gain: 0.1, dest: o });
+  },
+
+  // bug doré : carillon montant
+  bugGold(A) {
+    const t = A.now, o = A.out(0, null, 0.45);
+    [84, 88, 91, 96].forEach((m, k) => A.bell({ f: nf(m), t: t + k * 0.06, dur: 0.5, gain: 0.07, dest: o }));
+  },
+
+  // il replonge : petite fuite descendante
+  bugEscape(A, pan = 0) {
+    if (!A.throttle('bugEscape', 0.2) || !A.claim('mg', 0.25, 0.3)) return;
+    const t = A.now, o = A.out(pan, null, 0.1);
+    A.tone({ type: 'square', f: 900, f2: 260, t, dur: 0.18, gain: 0.025, filter: 'lowpass', ff: 2000, dest: o });
+  },
+
+  // combo : note qui monte d'un ton par palier
+  bugCombo(A, mult = 2) {
+    if (!A.throttle('bugCombo', 0.08)) return;
+    const t = A.now, o = A.out(0, null, 0.3);
+    A.tone({ type: 'square', f: nf(79 + 2 * mult), t: t + 0.05, dur: 0.1, gain: 0.035, filter: 'lowpass', ff: 4000, dest: o });
+    if (mult >= 5) A.tone({ type: 'square', f: nf(91), t: t + 0.13, dur: 0.18, gain: 0.035, filter: 'lowpass', ff: 4500, dest: o });
+  },
+
+  // le ver se divise : « bloup » double
+  bugSplit(A) {
+    const t = A.now, o = A.out(0, null, 0.2);
+    A.tone({ f: 300, f2: 700, t, dur: 0.1, gain: 0.12, dest: o });
+    A.tone({ f: 300, f2: 700, t: t + 0.11, dur: 0.1, gain: 0.12, dest: o });
+  },
+
+  // palier acquis : confirmation à deux notes
+  bugPalier(A) {
+    const t = A.now, o = A.out(0, null, 0.35);
+    A.tone({ type: 'square', f: nf(76), t, dur: 0.1, gain: 0.04, filter: 'lowpass', ff: 3500, dest: o });
+    A.tone({ type: 'square', f: nf(83), t: t + 0.11, dur: 0.22, gain: 0.04, filter: 'lowpass', ff: 3500, dest: o });
+  },
+
+  // purge : balayage montant puis souffle
+  bugPurge(A) {
+    const t = A.now, o = A.out(0, null, 0.5);
+    A.tone({ type: 'sawtooth', f: 120, f2: 1800, t, dur: 0.7, gain: 0.08, filter: 'lowpass', ff: 3000, dest: o });
+    A.noise({ f: 300, f2: 6000, filter: 'bandpass', q: 1.2, t, dur: 0.8, gain: 0.12, dest: o });
+    [72, 76, 79, 84].forEach((m, k) => A.bell({ f: nf(m), t: t + 0.55 + k * 0.07, dur: 0.6, gain: 0.06, dest: o }));
+  },
+};
+
+return { SFX_BUGS };
+})();
+
 // ===== src/audio/sfx.js =====
 __mod['src/audio/sfx.js'] = (function () {
 // Effets sonores procéduraux. Chaque fonction reçoit le moteur (A) puis ses paramètres.
@@ -9495,6 +9681,7 @@ const { SFX_SINGULARITY } = __mod['src/audio/sfx-singularity.js'];
 const { SFX_GRAFFITI } = __mod['src/audio/sfx-graffiti.js'];
 const { SFX_VAULT } = __mod['src/audio/sfx-vault.js'];
 const { SFX_CYBERBALL } = __mod['src/audio/sfx-cyberball.js'];
+const { SFX_BUGS } = __mod['src/audio/sfx-bugs.js'];
 
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -10050,7 +10237,7 @@ const SFX = {
   // ---------------------------------------------------------------- minijeux
   minigameStart(A, sector) {
     const t = A.now, o = A.out(0, null, 0.5);
-    const roots = { hangar: 72, reactor: 62, tag: 67, defense: 64, vault: 59, arena: 65, core: 57 };
+    const roots = { hangar: 72, reactor: 62, tag: 67, maze: 60, defense: 64, vault: 59, arena: 65, bugs: 69, core: 57 };
     const r = roots[sector] || 69;
     const iv = sector === 'core' ? [0, 1, 7, 12] : sector === 'hangar' ? [0, 4, 7, 12] : [0, 3, 7, 12];
     iv.forEach((d, k) => A.tone({ type: 'sawtooth', f: nf(r + d), t: t + k * 0.09, dur: 0.35, gain: 0.06, filter: 'lowpass', ff: 2500, dest: o }));
@@ -10197,7 +10384,7 @@ const SFX = {
 };
 
 // sons des minijeux définis dans leurs propres modules
-Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL);
+Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL, SFX_BUGS);
 
 return { SFX };
 })();
@@ -10221,6 +10408,8 @@ const SONGS = {
   vault:    { bpm: 118, root: 59, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], style: 'pulse' },
   arena:    { bpm: 132, root: 65, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-1, 2, 6]], style: 'drive' },
   duel:     { bpm: 140, root: 57, prog: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 2, 5]], style: 'dark' },
+  maze:     { bpm: 104, root: 60, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], style: 'pulse' },
+  bugs:     { bpm: 134, root: 69, prog: [[0, 4, 7], [-3, 0, 4], [-5, -1, 2], [-1, 2, 6]], style: 'bounce' },
   gameover: { bpm: 76,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [-7, -4, 0], [-5, -1, 2]], style: 'ambient' },
 };
 
@@ -11112,10 +11301,11 @@ class AudioEngine {
 // sinon la musique procédurale. La multibille a sa propre piste sur le plateau.
 const TRACK_OF = {
   title: 'title', table: 'table', brick: 'hangar', reactor: 'reactor', tag: 'graffiti', defense: 'defense',
-  vault: 'vault', arena: 'arena', duel: 'duel', gameover: 'gameover',
+  vault: 'vault', arena: 'arena', duel: 'duel', gameover: 'gameover', maze: 'maze', bugs: 'bugs',
 };
 // morceau de remplacement tant qu'un nouveau morceau n'a pas été déposé dans assets/music
-const TRACK_FALLBACK = { graffiti: 'hangar', vault: 'reactor', arena: 'defense', frenzy: 'multiball' };
+// (CONDUITS et SERVEURS n'ont pas encore de morceau : ils empruntent ceux du COFFRE et de l'ARÈNE)
+const TRACK_FALLBACK = { graffiti: 'hangar', vault: 'reactor', arena: 'defense', frenzy: 'multiball', maze: 'vault', bugs: 'arena' };
 
 class MusicMix {
   constructor(proc, st, A) {
@@ -13186,7 +13376,7 @@ const { DMD } = __mod['src/ui/dmd.js'];
 const { GameOverSeq, scoreRows } = __mod['src/ui/gameover.js'];
 
 const $ = (s) => document.querySelector(s);
-const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', tag: '✺', defense: '⛨', vault: '◈', arena: '◎', core: '☠' };
+const SECTOR_ICONS = { hangar: '▦', reactor: '⚛', tag: '✺', maze: '⊞', defense: '⛨', vault: '◈', arena: '◎', bugs: '✲', core: '☠' };
 const STATE_TXT = { locked: 'VERROUILLÉ', prep: 'EN PRÉPARATION', armed: 'QUALIFIÉ', ready: 'ACCESSIBLE', hold: 'EN ATTENTE', done: 'RÉACTIVÉ' };
 
 // Interface DOM : mise en page adaptative (portrait / paysage), HUD, bannières, écrans.
@@ -13949,6 +14139,8 @@ const LINES = {
   sectorReady_defense: { pri: 3, cd: 0, v: ['Défense armée. Rampe droite pour engager les drones.'] },
   sectorReady_vault: { pri: 3, cd: 0, v: ['Le coffre de NULL est à portée. Rampe droite. Je n\'ai rien dit.'] },
   sectorReady_arena: { pri: 3, cd: 0, v: ['Arène ouverte. Rampe droite, le gardien s\'échauffe.'] },
+  sectorReady_maze: { pri: 3, cd: 0, v: ['Conduits ouverts. Rampe gauche : vous tiendrez la gravité en main.'] },
+  sectorReady_bugs: { pri: 3, cd: 0, v: ['Les serveurs grouillent de bugs. Rampe droite, écrasez-les.'] },
   sectorReady_core: { pri: 4, cd: 0, v: ['Trois secteurs en ligne. NULL est exposé. Portail central.'] },
   pivot: { pri: 3, cd: 2, v: ['Rampe surmenée : le barillet pivote. Je garde la bille au chaud.', 'Rotation du barillet. Prochaine rampe : {to}.'] },
   pivotPlayed: { pri: 3, cd: 2, v: ['Face utilisée. Le barillet tourne vers {to}.', 'Changement de rampe : {to} en approche.'] },
@@ -23387,6 +23579,628 @@ class CyberballGame extends FlipperArena {
 return { cyberballTuning, CyberballGame };
 })();
 
+// ===== src/minigames/bugsArt.js =====
+__mod['src/minigames/bugsArt.js'] = (function () {
+// Rendu du minijeu CHASSE AUX BUGS (secteur SERVEURS) : salle des serveurs vue de dessus
+// (dalles de faux plancher, baies le long du dôme, chemins de câbles), 9 trappes blindées,
+// voyants des baies, bugs procéduraux (normal, blindé, doré, ver, petit), éclaboussures,
+// jauge de vie de chaque bug, compteur de combo et grandes annonces.
+// Géométrie partagée avec la logique (bugs.js).
+const { rgba, TAU, mulberry32 } = __mod['src/util/math.js'];
+const { glowSprite } = __mod['src/render/sprites.js'];
+const { chrome, paint, screw, hazard } = __mod['src/render/artKit.js'];
+
+const BG = {
+  CX: 281,
+  // trappes en quinconce : 2, 3 puis 4 par rangée (symétriques autour de l'axe), placées là où
+  // passent les tirs des batteurs (carte des trajectoires : chaque trappe sur au moins 30 tirs sur 180)
+  TRAPS: [[231, 130], [331, 130], [201, 300], [281, 300], [361, 300], [141, 425], [231, 425], [331, 425], [421, 425]],
+  TRAP_R: 26,
+};
+const { CX, TRAPS, TRAP_R } = BG;
+const PINK = '#ff6ab4', GOLD = '#ffd84a', LIME = '#7dff4f', CYAN = '#29e3ff', MAG = '#ff3df2', VIOLET = '#c77dff';
+const DISPLAY = '"Orbitron", "Rajdhani", sans-serif';
+const FLOOR_BOTTOM = 720;
+
+// découpe du terrain haut (dôme + murs) pour les décors
+function fieldPath(g) {
+  g.beginPath();
+  g.moveTo(20, FLOOR_BOTTOM); g.lineTo(20, 300);
+  g.arc(300, 300, 280, Math.PI, TAU);
+  g.lineTo(542, FLOOR_BOTTOM); g.closePath();
+}
+
+// voyants des baies (calculés une fois) : position, couleur, rythme
+let LEDS = null;
+function leds() {
+  if (LEDS) return LEDS;
+  const out = [], rnd = mulberry32(404);
+  const cols = [LIME, PINK, CYAN, '#ffb52e'];
+  for (const R of RACKS) {
+    for (let k = 0; k < R.n; k++) {
+      const x = R.x + R.w - 6, y = R.y + 5 + k * 10;
+      out.push({ x, y, c: cols[Math.floor(rnd() * cols.length)], f: 1 + rnd() * 5, ph: rnd() * TAU });
+    }
+  }
+  LEDS = out;
+  return out;
+}
+// baies le long des bords du terrain (gauche et droite, sous le dôme)
+const RACKS = [
+  { x: 28, y: 300, w: 34, n: 18 }, { x: 500, y: 330, w: 34, n: 15 },
+  { x: 70, y: 150, w: 30, n: 8 }, { x: 462, y: 150, w: 30, n: 8 },
+];
+
+function drawBugsStatic(g, r, mg) {
+  g.save();
+  fieldPath(g); g.clip();
+  // faux plancher : dalles perforées
+  g.fillStyle = '#0d0811'; g.fillRect(0, 0, 600, FLOOR_BOTTOM);
+  const tile = 46;
+  for (let y = 20; y < FLOOR_BOTTOM; y += tile) {
+    for (let x = 20; x < 542; x += tile) {
+      g.fillStyle = (Math.floor(x / tile) + Math.floor(y / tile)) % 2 ? '#150d1a' : '#120a16';
+      g.fillRect(x + 1, y + 1, tile - 2, tile - 2);
+      g.fillStyle = 'rgba(0,0,0,0.5)';
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) g.fillRect(x + 8 + i * 9, y + 8 + j * 9, 2, 2);
+    }
+  }
+  // lueur rose venue du dessous du plancher
+  const lg = g.createRadialGradient(CX, 250, 30, CX, 250, 330);
+  lg.addColorStop(0, rgba(PINK, 0.16)); lg.addColorStop(1, rgba(PINK, 0));
+  g.fillStyle = lg; g.fillRect(0, 0, 600, FLOOR_BOTTOM);
+  // chemins de câbles entre les trappes
+  g.lineCap = 'round';
+  for (const [a, b] of [[0, 1], [2, 3], [3, 4], [5, 6], [6, 7], [7, 8], [0, 3], [1, 3], [2, 6], [4, 7]]) {
+    const [x0, y0] = TRAPS[a], [x1, y1] = TRAPS[b];
+    g.strokeStyle = '#05030a'; g.lineWidth = 9;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    g.strokeStyle = rgba(PINK, 0.22); g.lineWidth = 1.2; g.setLineDash([4, 5]);
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.setLineDash([]);
+  }
+  // baies : armoires sombres, tiroirs 1U
+  for (const R of RACKS) {
+    const h = R.n * 10 + 6;
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(R.x + 3, R.y + 4, R.w, h);
+    g.fillStyle = '#1b1420'; g.fillRect(R.x, R.y, R.w, h);
+    g.strokeStyle = rgba(PINK, 0.5); g.lineWidth = 1; g.strokeRect(R.x + 0.5, R.y + 0.5, R.w - 1, h - 1);
+    for (let k = 0; k < R.n; k++) {
+      g.fillStyle = k % 2 ? '#241b2b' : '#201826'; g.fillRect(R.x + 3, R.y + 3 + k * 10, R.w - 6, 8);
+      g.fillStyle = 'rgba(0,0,0,0.6)';
+      for (let i = 0; i < 3; i++) g.fillRect(R.x + 6 + i * 4, R.y + 5 + k * 10, 2, 4);
+    }
+  }
+  // inscriptions au sol
+  paint(g, 'SALLE DES SERVEURS', CX, 515, 13, rgba(PINK, 0.55), { font: DISPLAY });
+  paint(g, 'NULL // ZONE INFESTÉE', CX, 536, 8, rgba('#ffffff', 0.28), { font: DISPLAY });
+  hazard(g, [[150, 552], [412, 552], [412, 560], [150, 560]], PINK, 0.35, 6);
+  g.restore();
+  // trappes : lunette chromée, trou sombre, boulons, numéro
+  TRAPS.forEach(([x, y], i) => {
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(x + 3, y + 4, TRAP_R + 3, 0, TAU); g.fill();
+    const ring = Array.from({ length: 33 }, (_, k) => [x + Math.cos(k * TAU / 32) * TRAP_R, y + Math.sin(k * TAU / 32) * TRAP_R]);
+    g.fillStyle = '#050307'; g.beginPath(); g.arc(x, y, TRAP_R, 0, TAU); g.fill();
+    const ig = g.createRadialGradient(x, y, 2, x, y, TRAP_R);
+    ig.addColorStop(0, '#000000'); ig.addColorStop(0.7, '#0b0610'); ig.addColorStop(1, rgba(PINK, 0.35));
+    g.fillStyle = ig; g.beginPath(); g.arc(x, y, TRAP_R - 3, 0, TAU); g.fill();
+    chrome(g, ring, 4.5, { glow: PINK });
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; screw(g, x + Math.cos(a) * (TRAP_R + 6), y + Math.sin(a) * (TRAP_R + 6), 1.4); }
+    paint(g, '#' + String(i + 1).padStart(2, '0'), x, y + TRAP_R + 13, 6, rgba(PINK, 0.7), { font: DISPLAY });
+  });
+}
+
+// ---------------------------------------------------------------- bugs
+// Bug vu de dessus : pattes animées, corps selon l'espèce, tête et antennes.
+function drawBug(ctx, x, y, R, kind, t, seed, crack, hurt) {
+  const wob = Math.sin(t * 14 + seed) * 0.08;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(wob + Math.sin(seed) * 0.4);
+  // glitch : court décalage horizontal de temps en temps
+  if (Math.sin(t * 9 + seed * 3) > 0.93) ctx.translate((Math.random() - 0.5) * 5, 0);
+  const s = R / 17;
+  ctx.scale(s, s);
+  const legA = Math.sin(t * 22 + seed) * 0.35;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (kind === 'worm') {
+    // ver : anneaux qui ondulent
+    for (let k = 3; k >= 0; k--) {
+      const px = Math.sin(t * 8 + k * 0.9 + seed) * 4, py = 10 - k * 7;
+      ctx.fillStyle = k === 0 ? '#e7b4ff' : k % 2 ? VIOLET : '#a35ee0';
+      ctx.beginPath(); ctx.arc(px, py, 9 - k * 0.6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(30,0,50,0.7)'; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(-3 + Math.sin(t * 8 + seed) * 4, -12, 2.4, 0, TAU); ctx.arc(3 + Math.sin(t * 8 + seed) * 4, -12, 2.4, 0, TAU); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  const col = kind === 'gold' ? GOLD : kind === 'armor' ? '#a9b6cf' : LIME;
+  const dark = kind === 'gold' ? '#8a5a00' : kind === 'armor' ? '#3a4458' : '#1f6b12';
+  // pattes
+  ctx.strokeStyle = kind === 'armor' ? '#7c879e' : dark; ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  for (let k = 0; k < 3; k++) {
+    const yy = -4 + k * 7, a = (k % 2 ? legA : -legA);
+    ctx.moveTo(-8, yy); ctx.lineTo(-16, yy - 5 + a * 8);
+    ctx.moveTo(8, yy); ctx.lineTo(16, yy - 5 - a * 8);
+  }
+  ctx.stroke();
+  // corps
+  const bg = ctx.createLinearGradient(-10, -10, 10, 14);
+  bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.25, col); bg.addColorStop(1, dark);
+  ctx.fillStyle = hurt > 0 ? '#ffffff' : bg;
+  ctx.beginPath(); ctx.ellipse(0, 4, 10, 13, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.2; ctx.stroke();
+  // élytres / plaques de blindage
+  ctx.strokeStyle = kind === 'armor' ? '#e8eef8' : 'rgba(0,0,0,0.45)'; ctx.lineWidth = kind === 'armor' ? 1.6 : 1.1;
+  ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(0, 16); ctx.stroke();
+  if (kind === 'armor') {
+    ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(9, 0); ctx.moveTo(-8, 9); ctx.lineTo(8, 9); ctx.stroke();
+    if (crack) {
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(-6, -4); ctx.lineTo(-1, 3); ctx.lineTo(-4, 8); ctx.lineTo(2, 13); ctx.moveTo(-1, 3); ctx.lineTo(5, 1); ctx.stroke();
+    }
+  }
+  // motif « code » sur le dos
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  for (let k = 0; k < 3; k++) ctx.fillRect(-6 + k * 4.5, 6 + (k % 2) * 3, 2.2, 2.2);
+  // tête, yeux rouges de NULL, antennes
+  ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(0, -11, 6, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#ff2050';
+  ctx.beginPath(); ctx.arc(-2.4, -12.5, 1.7, 0, TAU); ctx.arc(2.4, -12.5, 1.7, 0, TAU); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(-2, -16); ctx.quadraticCurveTo(-5, -22, -9 + legA * 3, -24); ctx.moveTo(2, -16); ctx.quadraticCurveTo(5, -22, 9 - legA * 3, -24); ctx.stroke();
+  ctx.restore();
+}
+
+function renderBugs(ctx, r, mg) {
+  const t = r.time;
+  // voyants des baies
+  for (const L of leds()) {
+    const on = Math.sin(t * L.f + L.ph) > 0.2;
+    ctx.fillStyle = on ? L.c : 'rgba(40,30,50,0.9)';
+    ctx.fillRect(L.x, L.y, 3, 3);
+  }
+  // éclaboussures (sous les bugs)
+  for (const S of mg.splats) {
+    const u = S.t / 0.9, a = 0.75 * (1 - u);
+    const rnd = mulberry32(Math.floor(S.seed * 1000));
+    ctx.fillStyle = rgba(S.col, a);
+    ctx.beginPath(); ctx.arc(S.x, S.y, S.r * (0.7 + 0.3 * Math.min(1, u * 4)), 0, TAU); ctx.fill();
+    for (let k = 0; k < 7; k++) {
+      const ang = rnd() * TAU, d = S.r * (1 + rnd() * 0.9) * Math.min(1, u * 5);
+      ctx.beginPath(); ctx.arc(S.x + Math.cos(ang) * d, S.y + Math.sin(ang) * d, 2 + rnd() * 4, 0, TAU); ctx.fill();
+    }
+  }
+  for (const P of mg.traps) {
+    const B = P.bug;
+    if (P.state === 'warn') {
+      // la trappe clignote avant la sortie (couleur de l'espèce)
+      const col = B.kind === 'gold' ? GOLD : B.kind === 'armor' ? '#cfd8ea' : B.kind === 'worm' || B.kind === 'mini' ? VIOLET : PINK;
+      const blink = Math.sin(t * 30) > 0 ? 1 : 0.35;
+      ctx.strokeStyle = rgba(col, blink); ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(P.x, P.y, TRAP_R - 2, 0, TAU); ctx.stroke();
+      r.glow(P.x, P.y, 70, col, 0.35 * blink);
+      // couvercle qui s'entrouvre
+      const k = Math.min(1, P.t / P.dur);
+      ctx.fillStyle = rgba(col, 0.25 * k);
+      ctx.beginPath(); ctx.arc(P.x, P.y, (TRAP_R - 6) * k, 0, TAU); ctx.fill();
+      continue;
+    }
+    if (P.state === 'up' || P.state === 'down') {
+      const R = (B.kind === 'gold' ? 17 : B.kind === 'mini' ? 14 : B.kind === 'armor' ? 21 : 20);
+      const sc = P.state === 'up' ? Math.min(1, 0.35 + P.t / 0.12 * 0.65) : Math.max(0, 1 - P.t / 0.2);
+      const glowCol = B.kind === 'gold' ? GOLD : B.kind === 'armor' ? '#cfd8ea' : B.kind === 'worm' || B.kind === 'mini' ? VIOLET : LIME;
+      r.glow(P.x, P.y, 60, glowCol, 0.4 * sc);
+      if (B.kind === 'gold') {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (let k = 0; k < 4; k++) {
+          const a = t * 3 + k * Math.PI / 2;
+          ctx.drawImage(glowSprite(GOLD, 32), P.x + Math.cos(a) * 24 - 5, P.y + Math.sin(a) * 24 - 5, 10, 10);
+        }
+        ctx.restore();
+      }
+      drawBug(ctx, P.x, P.y, R * 1.2 * sc, B.kind, t, B.seed, B.crack > 0 || B.hp < 2 && B.kind === 'armor', P.flash > 0.6 ? 1 : 0);
+      // jauge de vie : arc qui se vide autour de la trappe
+      if (P.state === 'up' && B.life > 0) {
+        const left = Math.max(0, 1 - P.t / B.life);
+        ctx.strokeStyle = left < 0.3 ? (Math.sin(t * 24) > 0 ? '#ff3a3a' : '#ff9a9a') : rgba(PINK, 0.9);
+        ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(P.x, P.y, TRAP_R + 1, -Math.PI / 2, -Math.PI / 2 + left * TAU); ctx.stroke();
+      }
+    }
+    if (P.state === 'squash') {
+      const u = P.t / 0.35;
+      ctx.strokeStyle = rgba('#ffffff', 0.8 * (1 - u)); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(P.x, P.y, TRAP_R * (0.6 + u), 0, TAU); ctx.stroke();
+    }
+  }
+  // compteur de combo (fenêtre de 2 s qui se vide)
+  if (mg.combo >= 2 && mg.comboT > 0) {
+    const m = Math.min(5, mg.combo), k = mg.comboT / 3;
+    r.text(`COMBO ×${m}`, CX, 615, 22, m >= 5 ? GOLD : PINK, 'center', 0.95, true);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(CX - 60, 631, 120, 6);
+    ctx.fillStyle = m >= 5 ? GOLD : PINK; ctx.fillRect(CX - 60, 631, 120 * k, 6);
+  }
+  // paliers : 5 bugs par palier, rappel discret au sol
+  const pal = Math.floor(mg.count / 5), nPal = Math.ceil(mg.target / 5);
+  for (let k = 0; k < nPal; k++) {
+    const x = CX - (nPal - 1) * 11 + k * 22;
+    ctx.fillStyle = k < pal ? PINK : 'rgba(255,106,180,0.18)';
+    ctx.beginPath(); ctx.arc(x, 582, 5, 0, TAU); ctx.fill();
+  }
+}
+
+function renderBugsTop(ctx, r, mg) {
+  const C = mg.callout;
+  if (!C) return;
+  const u = C.t / C.life;
+  const a = u < 0.1 ? u / 0.1 : u > 0.75 ? Math.max(0, (1 - u) / 0.25) : 1;
+  const s = 1 + 0.5 * Math.max(0, 1 - C.t * 6);
+  const j = Math.sin(r.time * 37) > 0.6 ? 3 : 1.5, size = Math.round(40 * s), y = 690;
+  ctx.globalCompositeOperation = 'lighter';
+  r.text(C.text, CX - j, y, size, MAG, 'center', a * 0.55, true);
+  r.text(C.text, CX + j, y, size, CYAN, 'center', a * 0.55, true);
+  ctx.globalCompositeOperation = 'source-over';
+  r.text(C.text, CX, y, size, C.color, 'center', a, true);
+  if (C.sub) r.text(C.sub, CX, y + 34, 15, '#ffffff', 'center', a * 0.9, true);
+}
+
+return { BG, drawBugsStatic, renderBugs, renderBugsTop };
+})();
+
+// ===== src/minigames/bugs.js =====
+__mod['src/minigames/bugs.js'] = (function () {
+const { FlipperArena } = __mod['src/minigames/arena.js'];
+const { addLines } = __mod['src/game/lumen.js'];
+const { rand, clamp } = __mod['src/util/math.js'];
+const { BG, drawBugsStatic, renderBugs, renderBugsTop } = __mod['src/minigames/bugsArt.js'];
+
+// CHASSE AUX BUGS — secteur SERVEURS.
+// La salle des serveurs de NULL : 9 trappes en quinconce (2, 3, puis 4 par rangée) dans le
+// haut de l'arène. Des bugs surgissent d'une trappe (qui clignote d'abord une demi-seconde),
+// restent visibles un court instant puis repartent : on les écrase avec la bille.
+// - Bug normal : un coup. Blindé : deux coups (la carapace se fissure). Doré : rare, rapide,
+//   compte pour trois. Ver : écrasé, il se divise en deux petits bugs dans les trappes voisines.
+// - Combo : un bug écrasé moins de 3 s après le précédent fait monter le multiplicateur de
+//   points (×2… ×5).
+// - Paliers : tous les 5 bugs, la progression est acquise (rendue à la tentative suivante).
+// - Victoire : la purge (les bugs encore visibles explosent), puis retour au plateau.
+const { TRAPS, TRAP_R } = BG;
+const PINK = '#ff6ab4', GOLD = '#ffd84a', LIME = '#7dff4f', RED = '#ff3d6e';
+const COMBO_WINDOW = 3;
+const STEP = 5;                       // taille d'un palier
+// rayon physique et facteur d'exposition de chaque espèce
+const KINDS = {
+  normal: { r: 20, life: 1, pts: 1 },
+  armor: { r: 21, life: 1.15, pts: 1.5 },
+  gold: { r: 17, life: 0.6, pts: 5 },
+  worm: { r: 20, life: 1, pts: 1.5 },
+  mini: { r: 14, life: 0.75, pts: 0.6 },
+};
+
+// Réglages par niveau (cycle)
+function bugsTuning(lvl) {
+  const k = Math.max(0, lvl - 1);
+  return {
+    target: Math.min(21, 13 + 2 * k),
+    time: 75,
+    expo: Math.max(1.7, [2.8, 2.5, 2.25][Math.min(2, k)] - 0.15 * Math.max(0, k - 2)),   // s
+    armor: Math.min(0.35, 0.12 + 0.08 * k),
+    conc0: 2,                           // bugs simultanés au départ
+  };
+}
+
+addLines({
+  enter_bugs: { pri: 4, cd: 0, v: [
+    'Salle des serveurs. NULL y élève des bugs. Écrasez-les avant qu\'ils ne replongent.',
+    'Infestation détectée. Les trappes clignotent avant chaque sortie : soyez prêt.',
+  ] },
+  bugKept: { pri: 3, cd: 0, v: ['Palier conservé : {n} bugs déjà écrasés.'] },
+  bugPalier: { pri: 2, cd: 0, v: ['Palier acquis : {n} bugs.', 'Encore un palier. Les serveurs respirent.'] },
+  bugCombo: { pri: 3, cd: 4, v: ['Combo ×5 ! Vous écrasez plus vite qu\'ils ne compilent.', 'Combo maximal. NULL recompile en panique.'] },
+  bugGold: { pri: 3, cd: 3, v: ['Bug doré ! Il en vaut trois.', 'Doré, écrasé. Mes compteurs applaudissent.'] },
+  bugWorm: { pri: 2, cd: 6, v: ['Un ver ! Il s\'est dupliqué, attention.', 'Le ver se divise. Deux de plus.'] },
+  bugArmor: { pri: 1, cd: 8, v: ['Carapace fissurée. Encore un coup.', 'Blindé. Frappez-le une seconde fois.'] },
+  bugLast: { pri: 3, cd: 0, v: ['Plus qu\'un bug. Un seul !', 'Dernier bug. Finissons-en.'] },
+  bugWin: { pri: 4, cd: 0, v: ['Purge terminée. Système nettoyé.', 'Serveurs propres. NULL va devoir réécrire tout son code.'] },
+  bugEscape: { persona: 'null', pri: 2, cd: 9, v: ['TROP LENT. MES BUGS SONT ÉTERNELS.', 'RATÉ. LA CORRUPTION SE PROPAGE.'] },
+});
+
+class BugsGame extends FlipperArena {
+  constructor(game, opts) {
+    const lvl = opts.level || 1;
+    const T = bugsTuning(lvl);
+    super(game, opts, {
+      gravity: 2000,
+      time: T.time,
+      title: 'CHASSE AUX BUGS',
+      objective: `Écrasez ${T.target} bugs avant qu'ils ne replongent`,
+      music: 'bugs',
+      perk: { name: 'Ralenti', desc: 'Les bugs restent deux fois plus longtemps pendant 10 s' },
+    });
+    this.T = T;
+    this.target = T.target;
+    this.count = 0;               // bugs comptés (conservés compris)
+    this.squashed = 0;            // bugs écrasés pendant cette tentative
+    this.escaped = 0;
+    this.golds = 0; this.worms = 0; this.armorHits = 0;
+    this.combo = 0; this.comboT = 0; this.comboMax = 0; this.bestCombo = 0;
+    this.spawnCd = 0.8;
+    this.purge = null;
+    this.callout = null;
+    this.splats = [];
+    this.stk = { x: 0, y: 0, t: 0, slow: 0 };
+    this._build();
+    const kept = clamp((this.kept && this.kept.count) || 0, 0, this.target - 1);
+    this.count = kept;
+    this.keptStart = kept;
+    this.palier = Math.floor(kept / STEP);
+    this.world.build();
+  }
+
+  _build() {
+    this.traps = TRAPS.map(([x, y], i) => {
+      const P = { i, x, y, state: 'idle', t: 0, cool: rand(0, 0.5), bug: null, hitCd: 0, flash: 0 };
+      P.p = this.world.circle(x, y, KINDS.normal.r, { mat: 'rubber', e: 0.7, kick: 120, kickMin: 60, kickCooldown: 0.1, dynamic: true, enabled: false, style: 'none' });
+      P.p.pierceable = true;          // le noyau phasique traverse et écrase
+      P.p.onHit = (b, imp) => this._hit(P, b, imp);
+      return P;
+    });
+  }
+
+  begin(ball) {
+    super.begin(ball);
+    if (this.keptStart > 0) this.game.later(3.6, () => { if (this.state === 'play') this.game.say('bugKept', { n: this.keptStart }); });
+  }
+
+  applyPerk() { this.perkT = 10; }
+
+  // ------------------------------------------------------------ boucle
+  arenaStep(dt) {
+    if (this.purge) {
+      this._updatePurge(dt);
+      if (this.state === 'play') this.timeLeft = Math.min(this.timeLimit, this.timeLeft + dt);   // chrono gelé
+    }
+    if (this.state === 'ended') return;
+    if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) this.combo = 0; }
+    this._updateTraps(dt);
+    if (!this.purge) this._spawn(dt);
+    for (let i = this.splats.length - 1; i >= 0; i--) { this.splats[i].t += dt; if (this.splats[i].t > 0.9) this.splats.splice(i, 1); }
+    if (this.callout) { this.callout.t += dt; if (this.callout.t >= this.callout.life) this.callout = null; }
+    this.intensity = 0.72 + 0.2 * (this.count / this.target) + (this.combo >= 3 ? 0.06 : 0);
+  }
+
+  // anti-blocage (comme les autres arènes) : bille immobile hors des batteurs = petite poussée
+  afterStep(dt) {
+    const b = this.ball, S = this.stk;
+    if (!b || b.state !== 'free' || this.state !== 'play') { S.t = 0; S.slow = 0; return; }
+    const f = this.frame;
+    const cradle = b.y > 860 && (f.flipL.pressed || f.flipR.pressed);
+    if (!cradle && Math.abs(b.x - S.x) < 5 && Math.abs(b.y - S.y) < 5) S.t += dt;
+    else { S.x = b.x; S.y = b.y; S.t = 0; }
+    const sp = Math.hypot(b.vx, b.vy);
+    if (b.y < 860 && sp < 100) S.slow += dt; else if (sp > 250 || b.y >= 860) S.slow = 0;
+    if (S.t > 1.5 || S.slow > 2.5) {
+      S.t = 0; S.slow = 0;
+      b.vx = rand(-280, 280); b.vy = -420;
+      this.game.say('stuck');
+    }
+  }
+
+  // nombre de bugs visibles visé : monte avec le temps et le score
+  _conc() {
+    const el = this.time, n = this.squashed;
+    let c = this.T.conc0;
+    if (el > 10 || n >= 4) c++;
+    if (el > 30 || n >= 9) c++;
+    return Math.min(4, c);
+  }
+
+  _active() { return this.traps.filter(P => P.state === 'warn' || P.state === 'up').length; }
+
+  _spawn(dt) {
+    this.spawnCd -= dt;
+    if (this.spawnCd > 0 || this._active() >= this._conc()) return;
+    const b = this.ball;
+    // trappes libres, en évitant celle que la bille touche presque (sortie injouable)
+    const free = this.traps.filter(P => P.state === 'idle' && P.cool <= 0 && !(b && Math.hypot(b.x - P.x, b.y - P.y) < TRAP_R + 30));
+    if (!free.length) return;
+    const P = free[Math.floor(Math.random() * free.length)];
+    this._warn(P, this._pickKind(), 0.5);
+    this.spawnCd = rand(0.55, 1.05);
+  }
+
+  _pickKind() {
+    const left = this.target - this.count;
+    const gold = this.traps.some(P => P.bug && P.bug.kind === 'gold');
+    const r = Math.random();
+    if (!gold && this.squashed >= 3 && r < 0.07) return 'gold';
+    if (left >= 3 && r < 0.19) return 'worm';
+    if (r < 0.19 + this.T.armor) return 'armor';
+    return 'normal';
+  }
+
+  _warn(P, kind, dur) {
+    P.state = 'warn'; P.t = 0; P.dur = dur;
+    P.bug = { kind, hp: kind === 'armor' ? 2 : 1, life: 0, age: 0, crack: 0, seed: Math.random() * 100 };
+    this.game.sfx('bugWarn', (P.x - BG.CX) / BG.CX);
+  }
+
+  _life(kind) {
+    return this.T.expo * KINDS[kind].life * (this.perkT > 0 ? 2 : 1);
+  }
+
+  _updateTraps(dt) {
+    const g = this.game;
+    for (const P of this.traps) {
+      P.t += dt;
+      P.flash = Math.max(0, P.flash - dt * 3);
+      if (P.hitCd > 0) P.hitCd -= dt;
+      if (P.state === 'idle') { if (P.cool > 0) P.cool -= dt; continue; }
+      if (P.state === 'warn' && P.t >= P.dur) {
+        // sortie : le bug devient une cible solide (sauf si la bille est dessus)
+        const b = this.ball;
+        if (b && b.state === 'free' && Math.hypot(b.x - P.x, b.y - P.y) < KINDS[P.bug.kind].r + b.r + 2) { P.t = P.dur - 0.1; continue; }
+        P.state = 'up'; P.t = 0;
+        P.bug.life = this._life(P.bug.kind);
+        P.p.r = KINDS[P.bug.kind].r;
+        P.p.enabled = true;
+        g.sfx('bugUp', (P.x - BG.CX) / BG.CX, P.bug.kind);
+      } else if (P.state === 'up') {
+        P.bug.age += dt;
+        if (P.t >= P.bug.life) {
+          // il replonge
+          P.state = 'down'; P.t = 0; P.p.enabled = false;
+          if (!this.purge) {
+            this.escaped++;
+            g.sfx('bugEscape', (P.x - BG.CX) / BG.CX);
+            if (this.escaped % 3 === 0) g.say('bugEscape');
+          }
+        }
+      } else if (P.state === 'down' && P.t >= 0.2) {
+        P.state = 'idle'; P.bug = null; P.cool = 0.6;
+      } else if (P.state === 'squash' && P.t >= 0.35) {
+        P.state = 'idle'; P.bug = null; P.cool = 0.8;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------ coups
+  _hit(P, b, imp) {
+    if (this.state !== 'play' || this.purge || P.state !== 'up' || P.hitCd > 0 || imp < 40) return;
+    P.hitCd = 0.15;
+    const g = this.game, bug = P.bug;
+    if (bug.kind === 'armor' && bug.hp > 1) {
+      bug.hp--; bug.crack = 1;
+      bug.life = Math.max(bug.life, P.t + 0.6);      // le temps de reprendre la visée
+      P.flash = 1;
+      this.armorHits++;
+      g.sfx('bugArmor', (P.x - BG.CX) / BG.CX);
+      g.fx.burst(P.x, P.y, '#cfd8ea', 8, 260);
+      g.fx.text(P.x, P.y - 34, 'FISSURÉ', '#cfd8ea', 0.8);
+      g.addScore(1000 * this.level, P.x, P.y + 40);
+      g.say('bugArmor');
+      return;
+    }
+    this._squash(P, b);
+  }
+
+  _squash(P, b) {
+    const g = this.game, bug = P.bug, kind = bug.kind;
+    P.state = 'squash'; P.t = 0; P.p.enabled = false; P.flash = 1;
+    const worth = kind === 'gold' ? 3 : 1;
+    this.count = Math.min(this.target, this.count + worth);
+    this.squashed++;
+    // combo
+    this.combo = this.comboT > 0 ? this.combo + 1 : 1;
+    this.comboT = COMBO_WINDOW;
+    const mult = Math.min(5, this.combo);
+    this.bestCombo = Math.max(this.bestCombo, mult);
+    if (mult >= 5 && !this.comboMax) { this.comboMax = 1; g.say('bugCombo'); g.dmd('banner', { title: 'COMBO ×5', sub: 'Multiplicateur gagné', color: PINK }); }
+    const pts = Math.round(3000 * KINDS[kind].pts) * this.level * mult;
+    g.addScore(pts, P.x, P.y + 44, mult > 1 ? `COMBO ×${mult}` : null);
+    const col = kind === 'gold' ? GOLD : kind === 'armor' ? '#cfd8ea' : kind === 'worm' ? '#c77dff' : LIME;
+    this.splats.push({ x: P.x, y: P.y, t: 0, col, r: KINDS[kind].r * 1.5, seed: Math.random() * 100 });
+    g.fx.burst(P.x, P.y, col, kind === 'gold' ? 22 : 12, 300);
+    g.fx.burst(P.x, P.y, '#ffffff', 5, 200);
+    g.fx.ring(P.x, P.y, col, 44, 0.35);
+    g.fx.shake(kind === 'gold' ? 4 : 2);
+    g.sfx('bugSquash', (P.x - BG.CX) / BG.CX, mult);
+    if (mult >= 2) g.sfx('bugCombo', mult);
+    if (kind === 'gold') {
+      this.golds++;
+      g.sfx('bugGold');
+      g.fx.text(P.x, P.y - 34, 'DORÉ ×3', GOLD, 1.1);
+      g.say('bugGold');
+    } else if (mult >= 2) g.fx.text(P.x, P.y - 34, `×${mult}`, PINK, 0.8 + 0.08 * mult);
+    if (kind === 'worm') this._split(P);
+    // paliers et victoire
+    const pal = Math.floor(this.count / STEP);
+    if (this.count >= this.target) { this._startPurge(); return; }
+    if (pal > this.palier) {
+      this.palier = pal;
+      g.sfx('bugPalier');
+      g.banner('PALIER ACQUIS', `${this.count} / ${this.target} bugs — progression conservée`, PINK, 1.4);
+      g.say('bugPalier', { n: this.count });
+      this.callout = { text: 'PALIER', sub: `${this.count} / ${this.target}`, color: PINK, t: 0, life: 1.1 };
+    } else if (this.target - this.count === 1) g.say('bugLast');
+  }
+
+  // le ver se divise : deux petits bugs dans les trappes libres les plus proches
+  _split(P) {
+    this.worms++;
+    const near = this.traps.filter(Q => Q !== P && Q.state === 'idle')
+      .sort((a, c) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(c.x - P.x, c.y - P.y)).slice(0, 2);
+    for (const Q of near) { Q.cool = 0; this._warn(Q, 'mini', 0.3); }
+    if (near.length) { this.game.sfx('bugSplit'); this.game.say('bugWorm'); }
+  }
+
+  // ------------------------------------------------------------ purge (victoire)
+  _startPurge() {
+    const g = this.game;
+    this.purge = { t: 0, next: 0.12, done: false, pops: this.traps.filter(P => P.state === 'up' || P.state === 'warn') };
+    g.sfx('bugPurge');
+    g.slowT = Math.max(g.slowT, 0.6);
+    g.fx.flash(PINK, 0.3);
+    g.say('bugWin');
+    g.banner('PURGE !', 'Système nettoyé', PINK, 1.6);
+    this.callout = { text: 'PURGE !', sub: 'SYSTÈME NETTOYÉ', color: PINK, t: 0, life: 1.8 };
+    if (g.renderer && g.renderer.pulse) g.renderer.pulse(PINK, 1.3);
+  }
+
+  _updatePurge(dt) {
+    const U = this.purge, g = this.game;
+    U.t += dt;
+    // les bugs restants explosent un par un
+    while (U.pops.length && U.t >= U.next) {
+      U.next += 0.15;
+      const P = U.pops.shift();
+      if (P.state === 'up' || P.state === 'warn') {
+        P.state = 'squash'; P.t = 0; P.p.enabled = false;
+        g.fx.burst(P.x, P.y, PINK, 14, 320);
+        g.fx.ring(P.x, P.y, '#ffffff', 50, 0.4);
+        g.addScore(2000 * this.level, P.x, P.y + 40);
+        g.sfx('bugSquash', (P.x - BG.CX) / BG.CX, 1);
+      }
+    }
+    if (U.t >= 1.4 && !U.done) { U.done = true; this.finish(true, 'purge'); }
+  }
+
+  onTimeout() {
+    if (this.purge) { this.timeLeft = 0.02; return; }
+    super.onTimeout();
+  }
+
+  // ------------------------------------------------------------ fin et progression
+  keepProgress() { return { count: Math.min(this.target - 1, Math.floor(this.count / STEP) * STEP) }; }
+
+  results(success) {
+    const rewards = [{ type: 'phase' }];
+    if (this.comboMax) rewards.push({ type: 'mult' });
+    return {
+      rewards: success ? rewards : [],
+      points: success ? (30000 + Math.round(this.timeLeft) * 1200) * this.level : 0,
+    };
+  }
+
+  progressText() {
+    const c = this.combo >= 2 && this.comboT > 0 ? ` · COMBO ×${Math.min(5, this.combo)}` : '';
+    return `Bugs ${this.count}/${this.target}${c}`;
+  }
+
+  debugWin() { this.count = this.target; this._startPurge(); }
+
+  // ------------------------------------------------------------ rendu
+  drawStatic(g, r) { drawBugsStatic(g, r, this); }
+  renderArena(ctx, r) { renderBugs(ctx, r, this); }
+  renderTop(ctx, r) { renderBugsTop(ctx, r, this); }
+}
+
+return { bugsTuning, BugsGame };
+})();
+
 // ===== src/minigames/duel.js =====
 __mod['src/minigames/duel.js'] = (function () {
 const { FlipperArena } = __mod['src/minigames/arena.js'];
@@ -23845,12 +24659,13 @@ const { GraffitiGame } = __mod['src/minigames/graffiti.js'];
 const { DefenseGame } = __mod['src/minigames/defense.js'];
 const { VaultGame } = __mod['src/minigames/vault.js'];
 const { CyberballGame } = __mod['src/minigames/cyberball.js'];
+const { BugsGame } = __mod['src/minigames/bugs.js'];
 const { DuelGame } = __mod['src/minigames/duel.js'];
 const { Scores } = __mod['src/util/storage.js'];
 
 const MINIGAMES = {
   hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame,
-  defense: DefenseGame, vault: VaultGame, arena: CyberballGame, core: DuelGame,
+  defense: DefenseGame, vault: VaultGame, arena: CyberballGame, bugs: BugsGame, core: DuelGame,
 };
 
 // Statistiques de la partie (rapport de fin de session)

@@ -26,6 +26,8 @@ const LINES = {
   sectorReady_defense: { pri: 3, cd: 0, v: ['Défense armée. Rampe droite pour engager les drones.'] },
   sectorReady_vault: { pri: 3, cd: 0, v: ['Le coffre de NULL est à portée. Rampe droite. Je n\'ai rien dit.'] },
   sectorReady_arena: { pri: 3, cd: 0, v: ['Arène ouverte. Rampe droite, le gardien s\'échauffe.'] },
+  sectorReady_maze: { pri: 3, cd: 0, v: ['Conduits ouverts. Rampe gauche : vous tiendrez la gravité en main.'] },
+  sectorReady_bugs: { pri: 3, cd: 0, v: ['Les serveurs grouillent de bugs. Rampe droite, écrasez-les.'] },
   sectorReady_core: { pri: 4, cd: 0, v: ['Trois secteurs en ligne. NULL est exposé. Portail central.'] },
   pivot: { pri: 3, cd: 2, v: ['Rampe surmenée : le barillet pivote. Je garde la bille au chaud.', 'Rotation du barillet. Prochaine rampe : {to}.'] },
   pivotPlayed: { pri: 3, cd: 2, v: ['Face utilisée. Le barillet tourne vers {to}.', 'Changement de rampe : {to} en approche.'] },

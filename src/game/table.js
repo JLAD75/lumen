@@ -8,8 +8,9 @@ export const SHOT_IDS = ['lorbit', 'lramp', 'portal', 'rramp', 'rorbit'];
 const SHOT_BASE = { lorbit: 4000, lramp: 6000, portal: 3000, rramp: 5000, rorbit: 4000 };
 
 // Plateau principal : physique + règles. Trois niveaux : plateau, rampes, pont supérieur.
-// Barillets : chaque rampe est un prisme à 3 faces ; la face présentée désigne le minijeu
-// au bout de la rampe (gauche : HANGAR, RÉACTEUR, GRAFFITI ; droite : DÉFENSE, COFFRE, ARÈNE).
+// Barillets : chaque rampe est un prisme à 4 faces ; la face présentée désigne le minijeu
+// au bout de la rampe (gauche : HANGAR, RÉACTEUR, GRAFFITI, CONDUITS ; droite : DÉFENSE, COFFRE,
+// ARÈNE, SERVEURS).
 //   - chaque passage sur la rampe allume un chevron de la face (3 chevrons = minijeu accessible,
 //     le passage suivant l'emporte) ; banque gauche → face gauche, cibles tombantes → face droite,
 //     cellules du pont et UPLINK → les deux faces ;
@@ -19,7 +20,7 @@ const SHOT_BASE = { lorbit: 4000, lramp: 6000, portal: 3000, rramp: 5000, rorbit
 // Pivot du barillet (s) : déverrouillage, rotation en trois crans, verrouillage.
 export const PIVOT = { unlock: 0.45, turn: 1.6, lock: 0.45 };
 const PIVOT_DUR = PIVOT.unlock + PIVOT.turn + PIVOT.lock;
-// rotation « robotique » : trois crans de 40° séparés de courtes pauses
+// rotation « robotique » : trois crans (un quart de tour en tout) séparés de courtes pauses
 export function pivotEase(u) {
   const n = 3, move = 0.26, pause = (1 - n * move) / (n - 1);
   let p = 0;
@@ -817,7 +818,7 @@ export class Table {
   }
 
   // Vue d'un barillet pour le rendu. rot = face présentée, fractionnaire pendant la rotation
-  // (rot % 3 → indice de face) ; phase : idle | unlock | turn | lock, k = avancement de la phase.
+  // (rot % nombre de faces → indice de face) ; phase : idle | unlock | turn | lock, k = avancement de la phase.
   barrelView(side) {
     const B = this.barrels[side], a = B.anim;
     let rot = B.idx, phase = 'idle', k = 0;

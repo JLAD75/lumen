@@ -49,8 +49,8 @@ export const COLORS = {
   steel: '#8fa3c8',
 };
 
-// Les secteurs de la station. Chacun correspond à un minijeu. Les six premiers sont
-// portés par les barillets des rampes (3 faces par rampe) ; le NOYAU est au portail central.
+// Les secteurs de la station. Chacun correspond à un minijeu. Les huit premiers sont
+// portés par les barillets des rampes (4 faces par rampe) ; le NOYAU est au portail central.
 export const SECTORS = {
   hangar:  { id: 'hangar',  name: 'HANGAR',   game: 'Casse-briques orbital', color: '#29d9ff', icon: 'brick',  barrel: 'L' },
   reactor: { id: 'reactor', name: 'RÉACTEUR', game: 'Singularité',           color: '#ffae2a', icon: 'atom',   barrel: 'L' },
@@ -58,11 +58,13 @@ export const SECTORS = {
   defense: { id: 'defense', name: 'DÉFENSE',  game: 'Défense de la station', color: '#5dff8f', icon: 'shield', barrel: 'R' },
   vault:   { id: 'vault',   name: 'COFFRE',   game: 'Braquage du coffre',    color: '#b07bff', icon: 'vault',  barrel: 'R' },
   arena:   { id: 'arena',   name: 'ARÈNE',    game: 'Cyberball',             color: '#4d7dff', icon: 'goal',   barrel: 'R' },
+  maze:    { id: 'maze',    name: 'CONDUITS', game: 'Labyrinthe gyroscopique', color: '#cfe0ff', icon: 'maze', barrel: 'L' },
+  bugs:    { id: 'bugs',    name: 'SERVEURS', game: 'Chasse aux bugs',       color: '#ff6ab4', icon: 'bug',    barrel: 'R' },
   core:    { id: 'core',    name: 'NOYAU',    game: 'Duel contre NULL',      color: '#ff3d6e', icon: 'skull' },
 };
 
 // Faces des barillets (rampe gauche → pont, rampe droite → retour), dans l'ordre de rotation.
-export const BARRELS = { L: ['hangar', 'reactor', 'tag'], R: ['defense', 'vault', 'arena'] };
+export const BARRELS = { L: ['hangar', 'reactor', 'tag', 'maze'], R: ['defense', 'vault', 'arena', 'bugs'] };
 export const MINI_SECTORS = [...BARRELS.L, ...BARRELS.R];
 
 export const RULES = {

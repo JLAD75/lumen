@@ -15,6 +15,8 @@ const SONGS = {
   vault:    { bpm: 118, root: 59, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], style: 'pulse' },
   arena:    { bpm: 132, root: 65, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-1, 2, 6]], style: 'drive' },
   duel:     { bpm: 140, root: 57, prog: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 2, 5]], style: 'dark' },
+  maze:     { bpm: 104, root: 60, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], style: 'pulse' },
+  bugs:     { bpm: 134, root: 69, prog: [[0, 4, 7], [-3, 0, 4], [-5, -1, 2], [-1, 2, 6]], style: 'bounce' },
   gameover: { bpm: 76,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [-7, -4, 0], [-5, -1, 2]], style: 'ambient' },
 };
 
