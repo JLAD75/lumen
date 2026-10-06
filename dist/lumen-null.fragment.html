@@ -10604,11 +10604,14 @@ return { Soundtrack };
 
 // ===== src/audio/voice.js =====
 __mod['src/audio/voice.js'] = (function () {
-// Voix des IA : une signature de droïde, pas une parole. Chaque réplique devient une courte
-// phrase de notes synthétisées (moins d'une seconde), tirée de son texte : la même réplique
-// sonne toujours pareil. LUMEN siffle, trille et « boupe » (R2-D2, BB-8) ; NULL grogne,
-// saute de fréquence et grésille à travers une saturation crénelée.
-// Coût : 2 à 4 nœuds par note, aucun filtre par note ; rien du tout si la voix est coupée.
+// Voix des IA : une signature de droïde, pas une parole. Chaque réplique devient une phrase
+// continue de pépiements (moins d'une seconde et quart), tirée de son texte : la même réplique
+// sonne toujours pareil. Grammaire calquée sur R2-D2 : pépiements de 50 à 90 ms enchaînés sans
+// silence, séparés par de brefs creux de volume, hauteur qui saute par paliers, glissés et
+// trilles, timbre légèrement harmonique, chute finale vers le grave.
+// LUMEN pépie dans l'aigu ; NULL, droïde sombre, parle grave et plus lentement, sa mélodie
+// descend, un grondement léger l'habite et il finit toujours par une mise hors tension.
+// Coût : une seule voix par réplique (oscillateur, enveloppe, vibrato), 4 à 7 nœuds au total.
 
 const { mulberry32 } = __mod['src/util/math.js'];
 
@@ -10618,64 +10621,47 @@ function hash(s) {
   return h >>> 0;
 }
 
-// Une note : { type, f: [fréquences enchaînées en glissando] | steps, d, gain, trill: [Hz, profondeur] }
-function lumenPhrase(text, R) {
+// Un pépiement : { f0, f1 (glissé de f0 à f1), d (s), trill (profondeur relative, 0 = aucune), gap (silence après) }
+function phrase(text, persona, R) {
   const between = (a, b) => a + R() * (b - a);
-  const n = 2 + Math.min(4, Math.ceil(text.length / 22));
-  const notes = [];
+  const isNull = persona === 'null';
+  const P = isNull
+    ? { lo: 340, hi: 900, n: [4, 8], d: [0.09, 0.15], drift: -0.04, trill: 0.12 }
+    : { lo: 1400, hi: 2800, n: [6, 12], d: [0.05, 0.09], drift: 0, trill: 0.22 };
+  const n = Math.round(P.n[0] + Math.min(1, text.length / 60) * (P.n[1] - P.n[0]) + R() * 2 - 1);
+  const chirps = [];
+  // marche aléatoire en demi-tons dans le registre, avec une pente (NULL descend)
+  const span = Math.log2(P.hi / P.lo) * 12;
+  let st = isNull ? between(span * 0.55, span) : between(span * 0.2, span * 0.8);
   for (let i = 0; i < n; i++) {
+    st += (R() < 0.5 ? -1 : 1) * between(1, 5) + P.drift * 12;
+    if (st < 0) st = -st * 0.5;
+    if (st > span) st = span - (st - span) * 0.5;
+    const f0 = P.lo * Math.pow(2, st / 12);
     const r = R();
-    if (r < 0.34) {
-      // sifflet : glissando franc, vers le haut ou vers le bas
-      const f0 = between(1100, 2300);
-      notes.push({ type: 'sine', f: [f0, f0 * (R() < 0.5 ? between(1.3, 1.8) : between(0.55, 0.8))], d: between(0.06, 0.13), gain: 0.2 });
-    } else if (r < 0.52) {
-      // trille : vibrato rapide, le gazouillis de R2-D2
-      const f0 = between(1500, 2500);
-      notes.push({ type: 'sine', f: [f0, f0 * between(0.9, 1.15)], d: between(0.12, 0.2), gain: 0.17, trill: [between(22, 34), between(0.1, 0.2)] });
-    } else if (r < 0.72) {
-      // « boup » rond et grave de BB-8
-      const f0 = between(420, 760);
-      notes.push({ type: 'triangle', f: [f0, f0 * between(1.3, 1.8)], d: between(0.07, 0.12), gain: 0.32 });
-    } else if (r < 0.86) {
-      // envolée : monte puis retombe
-      const f0 = between(900, 1500);
-      notes.push({ type: 'sine', f: [f0, f0 * between(1.6, 2.1), f0 * between(0.9, 1.2)], d: between(0.12, 0.18), gain: 0.18 });
-    } else {
-      // « dit » bref et aigu
-      notes.push({ type: 'sine', f: [between(2200, 3200)], d: between(0.03, 0.045), gain: 0.16 });
-    }
+    // contour : tenu, glissé montant, glissé descendant
+    const f1 = Math.min(P.hi * 1.05, r < 0.4 ? f0 * between(0.97, 1.03) : r < 0.7 ? f0 * between(1.12, 1.35) : f0 * between(0.75, 0.9));
+    chirps.push({ f0, f1, d: between(P.d[0], P.d[1]), trill: R() < 0.18 ? P.trill : 0, gap: R() < 0.12 ? between(0.03, 0.06) : 0 });
   }
-  // intonation finale : une question remonte, une exclamation finit en trille
   const end = text.trim().slice(-1);
-  if (end === '?') { const f0 = between(900, 1300); notes.push({ type: 'sine', f: [f0, f0 * 2.2], d: 0.16, gain: 0.19 }); }
-  else if (end === '!') { const f0 = between(1800, 2400); notes.push({ type: 'sine', f: [f0, f0 * 1.1], d: 0.14, gain: 0.16, trill: [30, 0.18] }); }
-  return notes;
-}
-
-function nullPhrase(text, R) {
-  const between = (a, b) => a + R() * (b - a);
-  const n = 2 + Math.min(3, Math.ceil(text.length / 30));
-  const notes = [];
-  for (let i = 0; i < n; i++) {
-    const r = R();
-    if (r < 0.4) {
-      // grognement qui plonge
-      const f0 = between(110, 200);
-      notes.push({ type: 'sawtooth', f: [f0, f0 * between(0.5, 0.7)], d: between(0.12, 0.2), gain: 0.2 });
-    } else if (r < 0.75) {
-      // sauts de fréquence numériques
-      const steps = Array.from({ length: 3 + Math.floor(R() * 3) }, () => between(160, 720));
-      notes.push({ type: 'square', steps, d: between(0.1, 0.16), gain: 0.12 });
-    } else {
-      // décharge : chute rapide de l'aigu au grave
-      notes.push({ type: 'square', f: [between(800, 1100), between(90, 140)], d: between(0.07, 0.1), gain: 0.12 });
-    }
+  if (isNull) {
+    // mise hors tension : longue descente vers le grave
+    const f0 = between(420, 520);
+    chirps.push({ f0, f1: f0 * 0.32, d: 0.34, trill: 0, gap: 0 });
+  } else if (end === '?') {
+    // question : la fin remonte
+    const f0 = between(1500, 1800);
+    chirps.push({ f0, f1: f0 * 1.45, d: 0.12, trill: 0, gap: 0 });
+  } else if (end === '!') {
+    // exclamation : trille aiguë
+    const f0 = between(2300, 2700);
+    chirps.push({ f0, f1: f0 * 1.05, d: 0.13, trill: 0.2, gap: 0 });
+  } else if (R() < 0.7) {
+    // le plus souvent, chute finale vers le grave (comme l'échantillon de référence)
+    const f0 = between(1050, 1250);
+    chirps.push({ f0, f1: f0 * 0.98, d: 0.09, trill: 0, gap: 0 });
   }
-  // la fin descend toujours, longue et grave
-  const f0 = between(150, 190);
-  notes.push({ type: 'sawtooth', f: [f0, f0 * 0.45], d: 0.24, gain: 0.2 });
-  return notes;
+  return chirps;
 }
 
 class Voice {
@@ -10683,6 +10669,15 @@ class Voice {
     this.A = A;
     this.busyUntil = 0;
     this.chains = {};
+    this.waves = {};
+  }
+
+  // timbres : quelques harmoniques douces (LUMEN), plus chargé et sombre (NULL)
+  _wave(persona) {
+    if (this.waves[persona]) return this.waves[persona];
+    const h = persona === 'null' ? [0, 1, 0.55, 0.35, 0.22, 0.14, 0.09] : [0, 1, 0.32, 0.16, 0.06];
+    const real = new Float32Array(h.length), imag = new Float32Array(h);
+    return (this.waves[persona] = this.A.ctx.createPeriodicWave(real, imag));
   }
 
   // chaîne de sortie propre à chaque IA, créée une fois
@@ -10691,65 +10686,69 @@ class Voice {
     const A = this.A, ctx = A.ctx;
     const input = ctx.createGain();
     let node = input;
-    // niveaux calés sur l'ancienne voix (rendu hors ligne), un peu en dessous : les sifflets
-    // aigus de LUMEN tombent là où l'oreille est la plus sensible
-    if (persona !== 'null') input.gain.value = 0.3;
+    // niveaux calés sur l'ancienne voix (rendu hors ligne), un peu en dessous
     if (persona === 'null') {
-      const ws = ctx.createWaveShaper();
-      const c = new Float32Array(256);
-      for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.round(Math.tanh(x * 3) * 5) / 5; }
-      ws.curve = c;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 3;
-      const level = ctx.createGain(); level.gain.value = 0.45;
-      input.connect(ws); ws.connect(lp); lp.connect(level); node = level;
-    }
+      input.gain.value = 0.42;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200; lp.Q.value = 0.8;
+      input.connect(lp); node = lp;
+    } else input.gain.value = 0.12;
     node.connect(A.buses.voice);
-    const rs = ctx.createGain(); rs.gain.value = persona === 'null' ? 0.35 : 0.18;
+    const rs = ctx.createGain(); rs.gain.value = persona === 'null' ? 0.3 : 0.16;
     node.connect(rs); rs.connect(A.revSend);
     return (this.chains[persona] = input);
-  }
-
-  _note(dest, t, n) {
-    const ctx = this.A.ctx;
-    const o = ctx.createOscillator();
-    o.type = n.type;
-    const f = o.frequency;
-    if (n.steps) {
-      f.setValueAtTime(n.steps[0], t);
-      for (let i = 1; i < n.steps.length; i++) f.setValueAtTime(n.steps[i], t + (n.d * i) / n.steps.length);
-    } else {
-      f.setValueAtTime(n.f[0], t);
-      for (let i = 1; i < n.f.length; i++) f.exponentialRampToValueAtTime(n.f[i], t + (n.d * i) / (n.f.length - 1));
-    }
-    if (n.trill) {
-      const lfo = ctx.createOscillator(); lfo.frequency.value = n.trill[0];
-      const depth = ctx.createGain(); depth.gain.value = n.f[0] * n.trill[1];
-      lfo.connect(depth); depth.connect(f);
-      lfo.start(t); lfo.stop(t + n.d + 0.02);
-    }
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(n.gain, t + 0.008);
-    g.gain.setValueAtTime(n.gain, t + n.d * 0.7);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + n.d);
-    o.connect(g); g.connect(dest);
-    o.start(t); o.stop(t + n.d + 0.02);
   }
 
   speak(text, persona = 'lumen') {
     const A = this.A, ctx = A.ctx, s = A.settings;
     if (s.muted || !(s.voice > 0) || !text) return;
     const isNull = persona === 'null';
-    const R = mulberry32(hash(persona + text));
-    const notes = isNull ? nullPhrase(text, R) : lumenPhrase(text, R);
-    const dest = this._chain(isNull ? 'null' : 'lumen');
-    let t = Math.max(ctx.currentTime + 0.02, this.busyUntil);
-    for (const n of notes) {
-      this._note(dest, t, n);
-      // petits silences entre les notes, parfois enchaînées sans pause
-      t += n.d + (R() < 0.25 ? 0 : 0.02 + R() * 0.04);
+    const key = isNull ? 'null' : 'lumen';
+    const R = mulberry32(hash(key + text));
+    const chirps = phrase(text, key, R);
+    const start = Math.max(ctx.currentTime + 0.02, this.busyUntil);
+
+    const o = ctx.createOscillator();
+    o.setPeriodicWave(this._wave(key));
+    const f = o.frequency;
+    const g = ctx.createGain();
+    const env = g.gain;
+    // vibrato commun, ouvert seulement sur les pépiements trillés
+    const lfo = ctx.createOscillator(); lfo.frequency.value = isNull ? 18 : 27;
+    const depth = ctx.createGain(); depth.gain.value = 0;
+    lfo.connect(depth); depth.connect(f);
+    let tail = null;
+    if (isNull) {
+      // grondement : légère modulation d'amplitude, la menace sans la saturation
+      tail = ctx.createGain(); tail.gain.value = 0.75;
+      const am = ctx.createOscillator(); am.frequency.value = 34;
+      const amk = ctx.createGain(); amk.gain.value = 0.25;
+      am.connect(amk); amk.connect(tail.gain);
+      g.connect(tail); tail.connect(this._chain(key));
+      am.start(start); tail.am = am;
+    } else g.connect(this._chain(key));
+    o.connect(g);
+
+    const peak = 0.5, dip = peak * 0.12;
+    let t = start;
+    f.setValueAtTime(chirps[0].f0, t);
+    env.setValueAtTime(0.0001, t);
+    for (const c of chirps) {
+      // attaque : saut rapide vers la nouvelle hauteur, puis glissé jusqu'à la fin du pépiement
+      f.exponentialRampToValueAtTime(c.f0, t + 0.012);
+      f.exponentialRampToValueAtTime(c.f1, t + c.d);
+      env.linearRampToValueAtTime(peak, t + 0.008);
+      env.setValueAtTime(peak, t + c.d - 0.014);
+      env.linearRampToValueAtTime(c.gap ? 0.0001 : dip, t + c.d);
+      depth.gain.setValueAtTime(c.trill ? c.f0 * c.trill : 0, t);
+      t += c.d;
+      if (c.gap) { env.setValueAtTime(0.0001, t + c.gap); t += c.gap; }
     }
-    this.busyUntil = t + 0.08;
+    env.linearRampToValueAtTime(0.0001, t + 0.03);
+    const stop = t + 0.05;
+    o.start(start); o.stop(stop);
+    lfo.start(start); lfo.stop(stop);
+    if (tail) tail.am.stop(stop);
+    this.busyUntil = t + 0.1;
   }
 }
 
