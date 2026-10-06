@@ -8,7 +8,9 @@
 // API : new PostFX(settings) · resize(W, H, dpr) · apply(ctx, canvas, dt, { rect, mood, intensity, part })
 //       part : 'content' (bloom + glitch, lit le canvas) · 'overlay' (bords, CRT, vignette, sans lecture,
 //       utilisable sur un calque transparent) · absent = les deux.
-//       glitch(force, durée) · pulse(couleur, force) · quality (0..2) · auto · setFps(fps)
+//       glitch(force, durée) · pulse(couleur, force) · quality (-1..2) · auto · setFps(fps)
+//       quality -1 : dernier recours d'un appareil trop lent, sans bloom ni lecture du canvas
+//       (glitch réduit à une teinte).
 
 function mk(w, h) {
   const c = document.createElement('canvas');
@@ -37,6 +39,7 @@ export class PostFX {
     this.maxQuality = coarse ? 1 : 2;   // plafond matériel présumé
     this._q = this.maxQuality;
     this.auto = true;                   // ajustement automatique selon setFps()
+    this.allowOff = false;              // le rendu autorise le cran -1 (sa résolution est au plancher)
     this.fps = 60; this.lowT = 0; this.highT = 0; this.raisedAt = -99; this.ceil = 2;
     this.t = 0;
     this.hot = 0; this.nul = 0;         // humeurs lissées
@@ -51,7 +54,7 @@ export class PostFX {
 
   get quality() { return this._q; }
   set quality(q) {
-    q = Math.max(0, Math.min(2, Math.round(q)));
+    q = Math.max(-1, Math.min(2, Math.round(q)));
     if (q !== this._q) { this._q = q; this.B = null; this.T = null; }
   }
 
@@ -92,7 +95,7 @@ export class PostFX {
     if (!this.auto || dt > 0.25) return;
     const f = this.fps;
     if (f < 47) { this.lowT += dt; this.highT = 0; } else if (f > 57) { this.highT += dt; this.lowT = 0; } else { this.lowT = 0; this.highT = 0; }
-    if (this.lowT > 2.5 && this._q > 0) {
+    if (this.lowT > 2.5 && this._q > (this.allowOff ? -1 : 0)) {
       if (this.t - this.raisedAt < 8) this.ceil = this._q - 1;   // la hausse précédente n'a pas tenu
       this.quality = this._q - 1; this.lowT = 0;
     } else if (this.highT > 15 && this._q < Math.min(this.ceil, this.maxQuality)) {
@@ -126,8 +129,9 @@ export class PostFX {
     const q = this._eq();
     const gk = this.gT > 0 ? this.gK * this._env() : 0;
     if (gk > 0.01 && !rfx) this._roll(dt, gk, rm);
-    const slices = gk > 0.01 && !rfx && !rm && this.slices.length > 0;
-    const ck = rfx ? 0 : gk;
+    const lite = q < 0;              // aucune lecture du canvas
+    const slices = gk > 0.01 && !rfx && !rm && !lite && this.slices.length > 0;
+    const ck = rfx || lite ? 0 : gk;
     const bk = (rfx ? 0.45 : 1) * (1 + 0.35 * this.hot + 0.25 * inten + this.boost + 0.15 * this.nul);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -141,17 +145,17 @@ export class PostFX {
       if (clip) { ctx.save(); ctx.beginPath(); ctx.rect(clip.x, clip.y, clip.w, clip.h); ctx.clip(); }
       // 1) lectures du canvas, toutes avant la première écriture
       const bq = rfx ? 0 : q;
-      const bloom = this._bloomRead(canvas, bq);
+      const bloom = lite ? null : this._bloomRead(canvas, bq);
       if (slices) this._scratchRead(canvas);
       if (ck > 0.02) this._splitRead(canvas, q);
       // 2) écritures
       if (slices) this._slices(ctx);
-      this._bloomWrite(ctx, bloom, bq, bk);
+      if (bloom) this._bloomWrite(ctx, bloom, bq, bk);
       if (ck > 0.02) {
         const d = rm ? 2.5 * ck : this.splitD * (0.6 + ck);
         this._split(ctx, Math.max(1, Math.round(d * this.dpr)), Math.min(0.55, 0.2 + 0.4 * ck));
       }
-      if (gk > 0.01) { if (rfx || rm) this._tint(ctx, gk); else this._blocks(ctx, gk); }
+      if (gk > 0.01) { if (rfx || rm || lite) this._tint(ctx, gk); else this._blocks(ctx, gk); }
       if (clip) ctx.restore();
     }
     if (doOverlay) {

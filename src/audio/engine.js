@@ -30,7 +30,12 @@ export class AudioEngine {
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    try { this.ctx = new AC({ latencyHint: 'interactive' }); } catch (_) { this.ctx = new AC(); }
+    // Mobile : tampon de sortie plus large (« balanced ») ; le plus petit tampon possible
+    // (« interactive ») sous-alimente la sortie d'un téléphone modeste dès que le rendu
+    // charge le processeur, d'où une musique qui crache. ~20 ms de latence en plus.
+    const mobile = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    this.mobile = mobile;
+    try { this.ctx = new AC({ latencyHint: mobile ? 'balanced' : 'interactive' }); } catch (_) { this.ctx = new AC(); }
     const ctx = this.ctx;
     this.master = ctx.createGain();
     const comp = ctx.createDynamicsCompressor();
@@ -51,7 +56,8 @@ export class AudioEngine {
     this.musicIn.connect(this.musicDuck); this.musicDuck.connect(this.buses.music);
     // réverbération
     this.reverb = ctx.createConvolver();
-    this.reverb.buffer = this._impulse(2.4, 2.8);
+    // le coût de la convolution suit la longueur de la réponse : plus courte sur mobile
+    this.reverb.buffer = this.mobile ? this._impulse(1.4, 2.4) : this._impulse(2.4, 2.8);
     this.revOut = ctx.createGain(); this.revOut.gain.value = 0.32;
     this.reverb.connect(this.revOut); this.revOut.connect(this.master);
     this.revSend = ctx.createGain(); this.revSend.gain.value = 1; this.revSend.connect(this.reverb);

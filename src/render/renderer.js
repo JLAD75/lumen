@@ -20,6 +20,7 @@ function heatMix(a, b, c, h) {
   const ch = (i) => Math.round(x[i] + (y[i] - x[i]) * u).toString(16).padStart(2, '0');
   return '#' + ch(0) + ch(1) + ch(2);
 }
+const DPR_LEVELS = [2, 1.75, 1.5, 1.25, 1];   // du plus fin au plus grossier
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // Rendu Canvas 2D : caméra monde, calques statiques pré-rendus, scènes, effets.
@@ -54,7 +55,13 @@ export class Renderer {
     for (let i = 0; i < 70; i++) this.warpSeeds.push({ a: rnd() * TAU, s: 0.3 + rnd() * 0.7, o: rnd() });
     this.lastFrame = performance.now();
     this.fpsAvg = 60;
-    this.dprCap = 2;
+    // Résolution adaptative : le coût du plateau suit le carré du dpr (bloom compris).
+    // Un écran tactile démarre à 1,5 ; la résolution descend d'un cran quand l'image
+    // ralentit, remonte quand l'appareil suit largement.
+    const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    this.dprCap = coarse ? 1.5 : 2;
+    this.dprCeil = 2;                // plafond appris : une hausse qui n'a pas tenu n'est plus retentée
+    this.dprLowT = 0; this.dprHighT = 0; this.dprRaisedAt = -99; this.dprWait = 2;
     // étendue du monde affiché (le plateau long commence au-dessus de y = 0)
     this.bounds = { x0: 0, y0: 0, w: TABLE_W, h: TABLE_H };
     this.shut = null;              // extinction du plateau (fin de partie)
@@ -210,6 +217,35 @@ export class Renderer {
     this.camScale = s;
   }
 
+  // Ajuste le dpr du plateau et du décor selon la fréquence d'images mesurée.
+  _autoDpr(dt) {
+    const dev = window.devicePixelRatio || 1;
+    this.post.allowOff = Math.min(dev, this.dprCap) <= DPR_LEVELS[DPR_LEVELS.length - 1] + 0.01 && this.dprWait <= 0;
+    if (dev <= 1 || dt > 0.25) return;
+    if (this.dprWait > 0) { this.dprWait -= dt; return; }   // le temps que la moyenne se refasse
+    const f = this.fpsAvg, eff = Math.min(dev, this.dprCap);
+    if (f < 48) { this.dprLowT += dt; this.dprHighT = 0; } else if (f > 57) { this.dprHighT += dt; this.dprLowT = 0; } else { this.dprLowT = 0; this.dprHighT = 0; }
+    let next = null;
+    if (this.dprLowT > 2) {
+      next = DPR_LEVELS.find(l => l < eff - 0.01) ?? null;
+      if (next !== null && this.time - this.dprRaisedAt < 10) this.dprCeil = eff - 0.01;
+    } else if (this.dprHighT > 12) {
+      const up = DPR_LEVELS.filter(l => l > eff + 0.01 && l <= Math.min(this.dprCeil, dev) + 0.01);
+      next = up.length ? up[up.length - 1] : null;
+      if (next !== null) this.dprRaisedAt = this.time;
+    }
+    if (next === null) { if (this.dprLowT > 2 || this.dprHighT > 12) { this.dprLowT = 0; this.dprHighT = 0; } return; }
+    this.setDpr(next);
+  }
+
+  setDpr(cap) {
+    this.dprCap = cap;
+    this.dprLowT = 0; this.dprHighT = 0; this.dprWait = 1.5;
+    this.fpsAvg = 55;
+    if (this.view) this.resize(this.W, this.H, this.view);
+    if (this.SW) this.resizeBackdrop(this.SW, this.SH, null, this.cv);
+  }
+
   screenTransform() { this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); }
 
   // dessine un calque statique à sa place dans le monde
@@ -223,6 +259,7 @@ export class Renderer {
     this.lastFrame = now;
     this.time += dt;
     this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
+    this._autoDpr(dt);
     const ctx = this.ctx;
     if (this.shut) { if (game.state === 'over') this._shutStep(dt); else this.powerOn(); }
     this._mood(game);

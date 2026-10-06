@@ -122,7 +122,7 @@ function loop(now) {
   ui.update(game, Math.min(dt, 0.1));
   if (fpsEl) {
     const w = game.scene === 'minigame' && game.minigame ? game.minigame.world : game.table.world;
-    fpsEl.textContent = `${Math.round(renderer.fpsAvg)} fps · sous-pas ${w.substepsLast} · billes ${game.activeBalls().length} · erreurs ${game.ledgerErrors}`;
+    fpsEl.textContent = `${Math.round(renderer.fpsAvg)} fps · dpr ${renderer.dpr.toFixed(2)} · post q${renderer.post.quality} · sous-pas ${w.substepsLast} · billes ${game.activeBalls().length} · erreurs ${game.ledgerErrors}`;
   }
   requestAnimationFrame(loop);
 }
