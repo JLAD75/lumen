@@ -110,6 +110,7 @@ let last = performance.now();
 const debug = /[?&]debug/.test(location.search);
 let fpsEl = null;
 let idleFrame = 0;
+const dbg = { fps: 60, render: 0, ui: 0 };
 if (debug) {
   fpsEl = document.createElement('div');
   fpsEl.style.cssText = 'position:fixed;left:4px;bottom:4px;z-index:50;font:12px monospace;color:#0f0;background:rgba(0,0,0,0.6);padding:2px 5px;pointer-events:none';
@@ -123,11 +124,19 @@ function loop(now) {
   // plus. Une image sur quatre suffit, le reste du temps va au rapport et à la saisie.
   const idle = game.state === 'over' && ui.over.active && ui.over.phase !== 'cine';
   renderer.idle = idle;
+  const t0 = debug ? performance.now() : 0;
   if (!idle || ++idleFrame % 4 === 0) game.render();
+  const t1 = debug ? performance.now() : 0;
   ui.update(game, Math.min(dt, 0.1));
   if (fpsEl) {
+    // fréquence réelle de la boucle (celle du renderer est figée pendant un rendu ralenti)
+    // et coût moyen du rendu du plateau et de l'interface
+    const k = 0.05;
+    dbg.fps += ((dt > 0 ? 1 / dt : 60) - dbg.fps) * k;
+    dbg.render += (t1 - t0 - dbg.render) * k;
+    dbg.ui += (performance.now() - t1 - dbg.ui) * k;
     const w = game.scene === 'minigame' && game.minigame ? game.minigame.world : game.table.world;
-    fpsEl.textContent = `${Math.round(renderer.fpsAvg)} fps · dpr ${renderer.dpr.toFixed(2)} · post q${renderer.post.quality} · sous-pas ${w.substepsLast} · billes ${game.activeBalls().length} · erreurs ${game.ledgerErrors}`;
+    fpsEl.textContent = `${Math.round(dbg.fps)} fps · rendu ${dbg.render.toFixed(1)} ms · interface ${dbg.ui.toFixed(1)} ms · dpr ${renderer.dpr.toFixed(2)} · post q${renderer.post.quality} · sous-pas ${w.substepsLast} · billes ${game.activeBalls().length} · erreurs ${game.ledgerErrors}`;
   }
   requestAnimationFrame(loop);
 }

@@ -314,6 +314,7 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
 .go-veil.on.lift { opacity: 0.7; transition-duration: 0.35s; }
 .go-flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; mix-blend-mode: screen; background: radial-gradient(circle at 50% 42%, #ffd0d8, #ff2040 40%, #4a0010 100%); }
 .go-flash.on { animation: goFlash 1s ease-out both; }
+.go-flash:not(.on) { display: none; }   /* éteint : hors de la composition */
 @keyframes goFlash { 0% { opacity: 0.95; } 10% { opacity: 0.2; } 16% { opacity: 0.75; } 100% { opacity: 0; } }
 @keyframes goFlashSoft { 0% { opacity: 0.35; } 100% { opacity: 0; } }
 
@@ -672,4 +673,11 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
   .go-slot.cur.dn { animation: goFlipDn 0.16s ease-out; }
   .go-entry.ready .go-key.ok { animation: none; box-shadow: 0 0 22px rgba(255,216,74,0.7); background: rgba(255,216,74,0.26); color: #fff; }
   .lb.on .lb-row.me, .lb.on .lb-row.you { animation: goRow 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(0.3s + var(--i) * 85ms) both; box-shadow: 0 0 16px rgba(255,61,242,0.7); }
+  /* Modes de fusion : un seul élément en « screen » fait recomposer tout l'écran sous lui
+     (décor, plateau, calques) dans une image intermédiaire, à chaque image. Le flash rouge
+     plein écran restait en place après son éclair : il pesait sur toute la fin de session. */
+  .go-flash, .go-sig.glx::before, .go-sig.glx::after { mix-blend-mode: normal; }
+  .go-flash.on { animation-name: goFlashSoft; }
+  /* rayons du record : dégradé conique masqué qui tournait en boucle, figé */
+  .go-rank.rec::before { animation: none; }
 }
