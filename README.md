@@ -70,17 +70,17 @@ Une séquence d'une vingtaine de secondes, que l'on peut passer avec Espace, Ent
 Le plateau a les proportions d'un vrai flipper (600 × 1 250 unités) et se joue sur trois couches physiques :
 
 1. **Le plateau** : deux batteurs, slingshots, couloirs de retour et extérieurs (kickback à gauche), orbites gauche et droite avec spinners, portail central, banque de 3 cibles debout à gauche, 3 cibles tombantes à droite, 3 pop bumpers sous les couloirs C·P·U, et au centre le **cadran** autour de l'œil de LUMEN (avec son aimant).
-2. **Les rampes à barillet** : la rampe gauche monte jusqu'au deuxième niveau ; la rampe droite fait un virage en U et redescend par une rampe en fil métallique jusqu'au couloir de retour droit. Chacune est un **barillet à trois faces** qui pivote pour présenter une autre rampe. Les orbites passent *sous* le pont.
+2. **Les rampes à barillet** : la rampe gauche monte jusqu'au deuxième niveau ; la rampe droite fait un virage en U et redescend par une rampe en fil métallique jusqu'au couloir de retour droit. Chacune est un **barillet à quatre faces** qui pivote pour présenter une autre rampe. Les orbites passent *sous* le pont.
 3. **Le pont supérieur** (deuxième niveau, en haut) : deux petits batteurs commandés par les mêmes touches, 4 **cellules** à toucher et l'éjecteur **UPLINK**. On y arrive par le lanceur ou par la rampe gauche ; la bille qui passe entre les petits batteurs retombe dans les couloirs C·P·U.
 
 ### Accès aux secteurs : les rampes à barillet
 
-Chaque rampe est un prisme à trois faces, comme les panneaux publicitaires rotatifs. La face présentée est une rampe différente (matière, couleur, décor), et elle mène à son propre minijeu :
+Chaque rampe est un prisme à quatre faces, comme les panneaux publicitaires rotatifs. La face présentée est une rampe différente (matière, couleur, décor), et elle mène à son propre minijeu :
 
 | Rampe | Faces, dans l'ordre de rotation |
 |---|---|
-| Gauche (vers le pont) | HANGAR (cyan) : Casse‑briques orbital → RÉACTEUR (orange) : Singularité → GRAFFITI (jaune acide) : Fresque néon |
-| Droite (virage en U) | DÉFENSE (vert) : Défense de la station → COFFRE (violet) : Braquage du coffre → ARÈNE (bleu) : Cyberball |
+| Gauche (vers le pont) | HANGAR (cyan) : Casse‑briques orbital → RÉACTEUR (orange) : Singularité → GRAFFITI (jaune acide) : Fresque néon → CONDUITS (chrome) : Labyrinthe gyroscopique |
+| Droite (virage en U) | DÉFENSE (vert) : Défense de la station → COFFRE (violet) : Braquage du coffre → ARÈNE (bleu) : Cyberball → SERVEURS (rose) : Chasse aux bugs |
 
 - **Chevrons** : chaque passage sur une rampe allume un chevron de la face présentée. La banque de 3 cibles gauches en ajoute un à gauche, les 3 cibles tombantes un à droite, les 4 cellules du pont et l'éjecteur UPLINK un de chaque côté. Avec **3 chevrons**, le minijeu est accessible (la flèche de la rampe clignote à la couleur du secteur) et le passage suivant l'emporte.
 - **Rotation** : une face trop utilisée (5 passages, 2 si son secteur est déjà réactivé) ou dont le minijeu vient d'être joué fait **pivoter le barillet** vers la face suivante. Le mouvement est celui d'une machine : déverrouillage des vérins, rotation en trois crans, verrouillage. Pendant ce temps, le volet de la rampe est fermé et **l'aimant de l'œil** attire la bille, la retient au centre du cadran puis la relâche vers un batteur avec 3 s de protection. Une face qui s'en va garde ses chevrons : elle reste « qualifiée » jusqu'à son retour.
@@ -120,7 +120,7 @@ Garde‑fous contre le gain infini :
 - Après un échec, il faut requalifier le secteur.
 - Les effets du plateau sont gelés pendant les minijeux.
 
-### Les sept minijeux
+### Les neuf minijeux
 
 Tous se jouent avec la bille du flipper : c'est la même bille (même identifiant) qui traverse le portail. Les effets compatibles la suivent (bouclier, multiplicateur, noyau phasique). Chaque minijeu commence par un avantage d'entrée annoncé et par une barrière de protection de quelques secondes. Un écran intégré au‑dessus de l'arène affiche le titre, la progression et le chrono.
 
@@ -151,7 +151,17 @@ Tous se jouent avec la bille du flipper : c'est la même bille (même identifian
    - Un stade néon : marquez **5 buts** contre le drone gardien de NULL, qui anticipe la trajectoire avec un temps de réaction. Deux défenseurs patrouillent au milieu.
    - Un tir puissant assomme le gardien (but ouvert). POTEAU, LUCARNE (but contre un montant, points ×2), corners qui renvoient la bille en centre devant le but. Chaque but : ralenti, feux d'artifice, clameur ; NULL se renforce ensuite (gardien plus vif, défenseur supplémentaire, pressing).
    - Récompense : multiplicateur et aimant.
-7. **Duel contre NULL** (120 s, batteurs)
+7. **Chasse aux bugs** (secteur SERVEURS, 75 s, batteurs)
+   - La salle des serveurs de NULL : 9 trappes en quinconce (2, 3 puis 4 par rangée), placées d'après la carte des trajectoires des tirs de batteurs. Des bugs en surgissent (la trappe clignote une demi‑seconde avant), restent visibles un court instant puis replongent : on les écrase avec la bille. Il en faut **13** (15, puis 17 aux niveaux suivants).
+   - Bug normal (un coup), blindé (deux coups, la carapace se fissure), doré (rare et rapide, compte pour trois), ver (écrasé, il se divise en deux petits bugs dans les trappes voisines). Un à quatre bugs visibles, de plus en plus au fil du chrono.
+   - **Combo** : un bug écrasé moins de 3 s après le précédent fait monter le multiplicateur de points jusqu'à ×5. Paliers de 5 bugs conservés. Avantage d'entrée : les bugs restent deux fois plus longtemps pendant 10 s. Victoire : la purge.
+   - Récompense : noyau phasique, et un multiplicateur après un combo ×5.
+8. **Labyrinthe gyroscopique** (secteur CONDUITS, 75 s, sans batteurs)
+   - Les conduits de la station, vus de dessus (7 × 13 cellules). **← et → font tourner la gravité** (rotation continue, sans retour automatique) ; les deux ensemble, ou LANCER, serrent le **frein magnétique**. Une flèche autour de la bille et une lueur sur le bord du labyrinthe montrent la direction de la chute.
+   - Ramasser **3 clés** (4, puis 5) ouvre la sortie, en haut ; l'atteindre gagne. Les **trappes** renvoient la bille à la dernière balise franchie, contre 3 s : on ne peut pas perdre la bille, seul le chrono fait échouer. Flèches d'accélération, capsules +5 s, et portes laser rythmées à partir du niveau 2.
+   - Un plan par niveau (généré une fois, graine fixe, choisie pour la longueur de son parcours) ; un pilote automatique vérifie qu'il se termine dans le temps. Clés conservées d'une tentative à l'autre. Avantage d'entrée : trappes scellées pendant 12 s.
+   - Récompense : bouclier et aimant, plus un jackpot de rampe pour un parcours sans chute.
+9. **Duel contre NULL** (120 s, batteurs)
    - Phase 1 : détruire les 2 générateurs. Phase 2 : frapper le noyau à travers les brèches d'un anneau tournant. Phase 3 : NULL se déplace, protégé par deux plaques.
    - Les attaques sont toujours annoncées (pointillés clignotants, flèches) : pare‑feu temporaires, sentinelles en orbite, distorsion de gravité.
    - Récompense : jackpot majeur, une amélioration durable, puis **niveau de sécurité +1**. Les secteurs se reverrouillent et la partie continue plus difficile : gravité +3 %, sauvegarde plus courte, minijeux plus rapides et plus résistants.
@@ -195,7 +205,8 @@ src/game/                  game.js (états, scènes, réserve de billes, score, 
 src/minigames/             base.js (cycle de vie, chute = retour au plateau, progression gardée)
                            arena.js (arènes à batteurs), breakout.js + breakoutArt.js,
                            singularity.js + singularityArt.js, graffiti.js + graffitiArt.js,
-                           defense.js, vault.js + vaultArt.js, cyberball.js + cyberballArt.js, duel.js
+                           defense.js, vault.js + vaultArt.js, cyberball.js + cyberballArt.js,
+                           bugs.js + bugsArt.js, maze.js + mazeGen.js (plans) + mazeArt.js, duel.js
 src/render/                renderer.js (caméra, scènes, calques, écran des minijeux)
                            tableArt.js (habillage du plateau), dialArt.js (cadran central),
                            barrelArt.js (rampes à barillet), artKit.js (chrome, plastiques, inserts)
@@ -232,13 +243,15 @@ tools/dev/                 démonstrations isolées de l'afficheur et des effets
 ### Tests automatisés (Node, sans navigateur)
 
 ```bash
-node tools/sim-tests.js          # plateau, barillets, aimant, FURIE, les 7 minijeux
+node tools/sim-tests.js          # plateau, barillets, aimant, FURIE, minijeux
 node tools/test-breakout.js      # casse-briques + parties de robots
 node tools/test-singularity.js   # singularité
 node tools/test-graffiti.js      # fresque néon
 node tools/test-defense.js       # défense
 node tools/test-vault.js         # braquage du coffre
 node tools/test-cyberball.js     # cyberball
+node tools/test-bugs.js          # chasse aux bugs (table de tirs, pilote qui vise)
+node tools/test-maze.js          # labyrinthe (plans, pilote automatique)
 node tools/table-geometry.js     # lancer, tirs depuis le berceau, pont, robustesse, blocages
 node tools/shot-map.js           # carte des tirs depuis le berceau et en mouvement
 node tools/soak.js 6 600         # endurance : 6 parties de 10 min
@@ -249,7 +262,9 @@ node tools/soak.js 6 600         # endurance : 6 parties de 10 min
   - avec un bouclier, la même bille est relancée dans le minijeu ;
   - la progression est mémorisée puis reprise à la tentative suivante ;
   - une chute avec une seule bille en réserve ne termine pas la partie ;
-  - ces points sont vérifiés sur les 7 minijeux ; au retour, le barillet joué pivote pendant que l'aimant retient la bille.
+  - ces points sont vérifiés sur les minijeux à batteurs ; au retour, le barillet joué pivote pendant que l'aimant retient la bille.
+  - Chasse aux bugs : chaque trappe est sur la trajectoire de 19 à 59 tirs de batteurs sur 116 ; un joueur « moyen » (moyenne d'un pilote réflexe et d'un chasseur qui vise, boucliers illimités) réussit environ 90 % des parties au niveau 1, 50 % au niveau 2, 15 % au niveau 3.
+  - Labyrinthe : chaque plan est connexe, la sortie ne s'ouvre que vers le bas, aucune trappe sur le parcours de référence ; le pilote automatique (qui ne commande que ← → et le frein) termine le niveau 1 dans 100 % des parties, en 25 à 40 s pour 75 s de chrono.
 - **Continuité de la bille** : même identifiant à l'entrée et à la sortie, aucun doublon, la bille en attente de relance est servie au lanceur si le chrono expire.
 - **Plateau à trois niveaux** :
   - un lancer franc mène toujours au pont supérieur ;

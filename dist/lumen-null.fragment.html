@@ -277,6 +277,7 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
 .tag { font-family: var(--font-d); font-size: 10px; padding: 1px 5px; border-radius: 4px; border: 1px solid; }
 .tag.c1 { color: #29d9ff; } .tag.c2 { color: #ffae2a; } .tag.c3 { color: #5dff8f; } .tag.c4 { color: #ff3d6e; }
 .tag.c5 { color: #e6ff3d; } .tag.c6 { color: #b07bff; } .tag.c7 { color: #4d7dff; }
+.tag.c8 { color: #cfe0ff; } .tag.c9 { color: #ff6ab4; }
 .help-card .btn { display: block; margin: 14px auto 0; min-width: 200px; }
 .settings-card { text-align: left; }
 .settings-card .btn { display: block; margin: 16px auto 0; min-width: 200px; }
@@ -790,9 +791,10 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
       <ul class="rules">
         <li><b>3 billes</b> pour la partie, et <b>une vie de plus à chaque million de points</b>. Réserve déjà pleine : la machine s'énerve, c'est la <b>FURIE</b> — 10 billes en jeu, gardez-en au moins 6 pendant 30 s pour agrandir la réserve d'une vie (4, puis 5…). Pendant la FURIE, un batteur tenu levé plus de 3 s surchauffe, rougit et retombe. Dans un minijeu, une bille qui tombe <b>ne coûte rien</b> : le minijeu échoue, la bille revient sur le plateau principal et la progression du secteur est gardée pour la tentative suivante (un bouclier relance la bille sur place).</li>
         <li><b>Deux niveaux</b> : le lanceur et la rampe gauche mènent au <b>pont supérieur</b>, avec ses deux petits batteurs (mêmes commandes). La bille qui passe entre eux retombe dans les couloirs C·P·U.</li>
-        <li><b>Rampes à barillet</b> : chaque rampe est un barillet à 3 faces, et la face présentée désigne le minijeu au bout de la rampe.
-          Rampe gauche : <span class="tag c1">HANGAR</span> Casse-briques · <span class="tag c2">RÉACTEUR</span> Singularité · <span class="tag c5">GRAFFITI</span> Fresque néon.
-          Rampe droite : <span class="tag c3">DÉFENSE</span> Défense de la station · <span class="tag c6">COFFRE</span> Braquage · <span class="tag c7">ARÈNE</span> Cyberball.</li>
+        <li><b>Rampes à barillet</b> : chaque rampe est un barillet à 4 faces, et la face présentée désigne le minijeu au bout de la rampe.
+          Rampe gauche : <span class="tag c1">HANGAR</span> Casse-briques · <span class="tag c2">RÉACTEUR</span> Singularité · <span class="tag c5">GRAFFITI</span> Fresque néon · <span class="tag c8">CONDUITS</span> Labyrinthe gyroscopique.
+          Rampe droite : <span class="tag c3">DÉFENSE</span> Défense de la station · <span class="tag c6">COFFRE</span> Braquage · <span class="tag c7">ARÈNE</span> Cyberball · <span class="tag c9">SERVEURS</span> Chasse aux bugs.</li>
+        <li><b>Labyrinthe gyroscopique</b> : pas de batteurs, ← et → font tourner la gravité (les deux ensemble : frein). Ramassez les clés, puis gagnez la sortie ; les trappes renvoient à la dernière balise.</li>
         <li><b>Chevrons</b> : chaque passage sur une rampe allume un chevron de sa face ; la banque de 3 cibles gauches en ajoute un à gauche, les 3 cibles tombantes un à droite, les 4 cellules du pont et l'éjecteur UPLINK un de chaque côté. <b>3 chevrons</b> : le minijeu est accessible, le passage suivant l'emporte.</li>
         <li>Une face <b>trop utilisée</b> (5 passages) ou dont le minijeu vient d'être joué fait <b>pivoter le barillet</b> vers la face suivante ; pendant la rotation, l'aimant de l'œil retient la bille au centre du plateau. Les chevrons d'une face sont gardés quand elle s'en va.</li>
         <li><span class="tag c4">NOYAU</span> 3 secteurs réactivés, puis le portail central → Duel contre NULL. Le cadran autour de l'œil de LUMEN montre l'état de chaque secteur, la jauge du prochain million et les fonctions allumées.</li>
@@ -9670,6 +9672,97 @@ const SFX_BUGS = {
 return { SFX_BUGS };
 })();
 
+// ===== src/audio/sfx-maze.js =====
+__mod['src/audio/sfx-maze.js'] = (function () {
+// Effets sonores procéduraux du minijeu LABYRINTHE GYROSCOPIQUE (fusionnés dans SFX par sfx.js).
+// Chaque fonction reçoit le moteur (A) puis ses paramètres ; catégorie de polyphonie 'mg'.
+
+const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+const SFX_MAZE = {
+  // rotation de la gravité : petit servo dont la hauteur suit la vitesse de rotation
+  mazeTilt(A, dir = 1, k = 0.5) {
+    if (!A.claim('mg', 0.15, 0.2)) return;
+    const t = A.now, o = A.out(dir * 0.4, null, 0.05);
+    const f = 140 + 120 * k;
+    A.tone({ type: 'sawtooth', f, f2: f * (dir > 0 ? 1.08 : 0.93), t, dur: 0.13, gain: 0.018, filter: 'lowpass', ff: 900, dest: o });
+  },
+
+  // frein magnétique : claquement et bourdonnement bref
+  mazeBrake(A) {
+    if (!A.throttle('mazeBrake', 0.3) || !A.claim('mg', 0.2, 0.5)) return;
+    const t = A.now, o = A.out(0, null, 0.1);
+    A.noise({ f: 2400, q: 3, t, dur: 0.04, gain: 0.08, dest: o });
+    A.tone({ type: 'square', f: 110, t, dur: 0.16, gain: 0.03, filter: 'lowpass', ff: 600, dest: o });
+  },
+
+  // clé ramassée : arpège qui monte avec le nombre de clés
+  mazeKey(A, n = 1) {
+    const t = A.now, o = A.out(0, null, 0.4);
+    [76, 81, 84].forEach((m, k) => A.bell({ f: nf(m + 2 * n), t: t + k * 0.06, dur: 0.45, gain: 0.07, dest: o }));
+  },
+
+  // chute dans une trappe : sifflement descendant puis choc sourd
+  mazeFall(A) {
+    const t = A.now, o = A.out(0, null, 0.35);
+    A.tone({ f: 900, f2: 90, t, dur: 0.5, gain: 0.12, dest: o });
+    A.noise({ f: 2000, f2: 200, filter: 'bandpass', q: 2, t, dur: 0.45, gain: 0.06, dest: o });
+    A.tone({ f: 80, f2: 40, t: t + 0.48, dur: 0.25, gain: 0.25, dest: o });
+  },
+
+  // retour à la balise : rematérialisation
+  mazeRespawn(A) {
+    const t = A.now, o = A.out(0, null, 0.3);
+    A.tone({ type: 'triangle', f: 300, f2: 900, t, dur: 0.22, gain: 0.07, dest: o });
+  },
+
+  // balise activée : bip double
+  mazeCheck(A) {
+    const t = A.now, o = A.out(0, null, 0.2);
+    A.tone({ type: 'square', f: nf(79), t, dur: 0.07, gain: 0.035, filter: 'lowpass', ff: 3500, dest: o });
+    A.tone({ type: 'square', f: nf(86), t: t + 0.08, dur: 0.12, gain: 0.035, filter: 'lowpass', ff: 3500, dest: o });
+  },
+
+  // flèche d'accélération : souffle montant
+  mazeBoost(A) {
+    if (!A.claim('mg', 0.25, 0.8)) return;
+    const t = A.now, o = A.out(0, null, 0.2);
+    A.noise({ f: 500, f2: 3500, filter: 'bandpass', q: 1.5, t, dur: 0.25, gain: 0.08, dest: o });
+    A.tone({ f: 200, f2: 600, t, dur: 0.2, gain: 0.06, dest: o });
+  },
+
+  // capsule +5 s : carillon bref
+  mazeCapsule(A) {
+    const t = A.now, o = A.out(0, null, 0.3);
+    A.bell({ f: nf(88), t, dur: 0.35, gain: 0.07, dest: o });
+    A.bell({ f: nf(93), t: t + 0.07, dur: 0.4, gain: 0.06, dest: o });
+  },
+
+  // porte laser : fermeture (bourdonnement qui monte) ou ouverture (qui retombe)
+  mazeDoor(A, closing = 1) {
+    if (!A.throttle('mazeDoor', 0.1) || !A.claim('mg', 0.2, 0.4)) return;
+    const t = A.now, o = A.out(0, null, 0.15);
+    A.tone({ type: 'sawtooth', f: closing ? 180 : 360, f2: closing ? 360 : 180, t, dur: 0.18, gain: 0.025, filter: 'lowpass', ff: 1500, dest: o });
+  },
+
+  // sortie ouverte : fanfare de sas
+  mazeExitOpen(A) {
+    const t = A.now, o = A.out(0, null, 0.45);
+    A.noise({ f: 300, f2: 2400, filter: 'bandpass', q: 1, t, dur: 0.5, gain: 0.08, dest: o });
+    [72, 79, 84, 88].forEach((m, k) => A.tone({ type: 'square', f: nf(m), t: t + 0.1 + k * 0.08, dur: 0.2, gain: 0.03, filter: 'lowpass', ff: 3800, dest: o }));
+  },
+
+  // victoire : aspiration par le sas et accord final
+  mazeWin(A) {
+    const t = A.now, o = A.out(0, null, 0.5);
+    A.tone({ type: 'sawtooth', f: 100, f2: 1600, t, dur: 0.6, gain: 0.07, filter: 'lowpass', ff: 2800, dest: o });
+    [72, 76, 79, 84].forEach((m) => A.bell({ f: nf(m), t: t + 0.55, dur: 0.9, gain: 0.05, dest: o }));
+  },
+};
+
+return { SFX_MAZE };
+})();
+
 // ===== src/audio/sfx.js =====
 __mod['src/audio/sfx.js'] = (function () {
 // Effets sonores procéduraux. Chaque fonction reçoit le moteur (A) puis ses paramètres.
@@ -9682,6 +9775,7 @@ const { SFX_GRAFFITI } = __mod['src/audio/sfx-graffiti.js'];
 const { SFX_VAULT } = __mod['src/audio/sfx-vault.js'];
 const { SFX_CYBERBALL } = __mod['src/audio/sfx-cyberball.js'];
 const { SFX_BUGS } = __mod['src/audio/sfx-bugs.js'];
+const { SFX_MAZE } = __mod['src/audio/sfx-maze.js'];
 
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -10384,7 +10478,7 @@ const SFX = {
 };
 
 // sons des minijeux définis dans leurs propres modules
-Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL, SFX_BUGS);
+Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL, SFX_BUGS, SFX_MAZE);
 
 return { SFX };
 })();
@@ -24201,6 +24295,797 @@ class BugsGame extends FlipperArena {
 return { bugsTuning, BugsGame };
 })();
 
+// ===== src/minigames/mazeGen.js =====
+__mod['src/minigames/mazeGen.js'] = (function () {
+// Plans du LABYRINTHE GYROSCOPIQUE : grille de 7 × 13 cellules, générée de façon déterministe
+// (une graine par niveau, choisie pour son parcours), puis meublée :
+//   départ en bas au centre, sortie en haut au centre (accessible par le bas uniquement),
+//   clés réparties loin les unes des autres, trappes dans les poches où l'élan pousse la bille
+//   (hors du parcours), balises le long du parcours, flèches d'accélération dans ses longues
+//   lignes droites, capsules +5 s dans les culs-de-sac, portes laser (niveau 2 et plus).
+// Le parcours de référence (départ → clés → sortie) sert aussi au pilote automatique des tests.
+const { mulberry32 } = __mod['src/util/math.js'];
+
+const MZ = { COLS: 7, ROWS: 13, CS: 72, X0: 29, Y0: 70 };
+const { COLS, ROWS } = MZ;
+const DIRS = [[0, -1, 'n'], [1, 0, 'e'], [0, 1, 's'], [-1, 0, 'w']];
+const OPP = { n: 's', s: 'n', e: 'w', w: 'e' };
+
+const cellCenter = (c, r) => [MZ.X0 + (c + 0.5) * MZ.CS, MZ.Y0 + (r + 0.5) * MZ.CS];
+const cellOf = (x, y) => [Math.floor((x - MZ.X0) / MZ.CS), Math.floor((y - MZ.Y0) / MZ.CS)];
+const key = (c, r) => r * COLS + c;
+
+// Réglages par niveau : graine, nombre de clés, de trappes, de portes, part de culs-de-sac
+// supprimés (boucles) et de salles ouvertes.
+// Graines retenues pour la longueur de leur parcours (39, 45 et 55 cellules).
+const PLANS = [
+  { seed: 134, keys: 3, traps: 4, doors: 0, braid: 0.75, rooms: 3 },
+  { seed: 94, keys: 4, traps: 6, doors: 2, braid: 0.65, rooms: 3 },
+  { seed: 15, keys: 5, traps: 8, doors: 3, braid: 0.55, rooms: 2 },
+];
+
+// Au-delà du niveau 3, le plan du niveau 3 revient (seul le chrono raccourcit).
+function planFor(level) {
+  return buildPlan(PLANS[Math.min(PLANS.length, Math.max(1, level)) - 1]);
+}
+
+function buildPlan(P) {
+  const R = mulberry32(P.seed);
+  // murs : open[k] = ensemble des directions ouvertes de la cellule k
+  const open = Array.from({ length: COLS * ROWS }, () => new Set());
+  const inGrid = (c, r) => c >= 0 && c < COLS && r >= 0 && r < ROWS;
+  const link = (c, r, d) => {
+    const [dx, dy] = DIRS.find(x => x[2] === d);
+    open[key(c, r)].add(d); open[key(c + dx, r + dy)].add(OPP[d]);
+  };
+  // 1. labyrinthe parfait (exploration en profondeur aléatoire)
+  const seen = new Set([key(3, ROWS - 1)]);
+  const stack = [[3, ROWS - 1]];
+  while (stack.length) {
+    const [c, r] = stack[stack.length - 1];
+    const nb = DIRS.map(([dx, dy, d]) => [c + dx, r + dy, d]).filter(([x, y]) => inGrid(x, y) && !seen.has(key(x, y)));
+    if (!nb.length) { stack.pop(); continue; }
+    const [x, y, d] = nb[Math.floor(R() * nb.length)];
+    link(c, r, d); seen.add(key(x, y)); stack.push([x, y]);
+  }
+  const deg = (c, r) => open[key(c, r)].size;
+  // 2. boucles : une part des culs-de-sac s'ouvre vers un voisin
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (deg(c, r) !== 1 || R() > P.braid) continue;
+    const nb = DIRS.filter(([dx, dy, d]) => inGrid(c + dx, r + dy) && !open[key(c, r)].has(d));
+    if (nb.length) { const [, , d] = nb[Math.floor(R() * nb.length)]; link(c, r, d); }
+  }
+  // 3. salles ouvertes 2 × 2 (hors des rangées du départ et de la sortie)
+  for (let k = 0; k < P.rooms; k++) {
+    const c = Math.floor(R() * (COLS - 1)), r = 2 + Math.floor(R() * (ROWS - 5));
+    link(c, r, 'e'); link(c, r + 1, 'e'); link(c, r, 's'); link(c + 1, r, 's');
+  }
+  // 4. sortie en haut au centre : accessible par le bas uniquement
+  const EX = [3, 0], ST = [3, ROWS - 1];
+  for (const d of ['e', 'w']) {
+    if (open[key(3, 0)].has(d)) {
+      const [dx] = DIRS.find(x => x[2] === d);
+      open[key(3, 0)].delete(d); open[key(3 + dx, 0)].delete(OPP[d]);
+    }
+  }
+  link(3, 0, 's');
+  // les voisins de la sortie gardent un accès (sinon on rouvre vers le bas)
+  for (const cx of [2, 4]) if (deg(cx, 0) === 0) link(cx, 0, 's');
+  // distances (parcours en largeur sur le graphe des cellules)
+  const bfs = (c0, r0) => {
+    const dist = new Array(COLS * ROWS).fill(Infinity), prev = new Array(COLS * ROWS).fill(-1);
+    dist[key(c0, r0)] = 0;
+    const q = [[c0, r0]];
+    while (q.length) {
+      const [c, r] = q.shift();
+      for (const d of open[key(c, r)]) {
+        const [dx, dy] = DIRS.find(x => x[2] === d);
+        const k2 = key(c + dx, r + dy);
+        if (dist[k2] === Infinity) { dist[k2] = dist[key(c, r)] + 1; prev[k2] = key(c, r); q.push([c + dx, r + dy]); }
+      }
+    }
+    return { dist, prev };
+  };
+  // réparation : toute cellule coupée du départ (côtés de la sortie refermés) est rattachée
+  // à une voisine accessible, jamais par les côtés de la sortie
+  for (let guard = 0; guard < COLS * ROWS; guard++) {
+    const { dist } = bfs(ST[0], ST[1]);
+    let fixed = false;
+    for (let r = 0; r < ROWS && !fixed; r++) for (let c = 0; c < COLS && !fixed; c++) {
+      if (dist[key(c, r)] !== Infinity) continue;
+      for (const [dx, dy, d] of DIRS) {
+        const x = c + dx, y = r + dy;
+        if (!inGrid(x, y) || dist[key(x, y)] === Infinity) continue;
+        if (x === EX[0] && y === EX[1]) continue;
+        link(c, r, d); fixed = true; break;
+      }
+    }
+    if (!fixed) break;
+  }
+  const pathTo = (from, to) => {
+    const { prev } = bfs(from[0], from[1]);
+    const out = [];
+    for (let k = key(to[0], to[1]); k !== -1; k = prev[k]) out.unshift([k % COLS, Math.floor(k / COLS)]);
+    return out;
+  };
+  // 5. clés : échantillonnage du point le plus éloigné (départ, sortie et clés déjà posées),
+  //    en préférant les culs-de-sac et en évitant les deux rangées extrêmes
+  const keys = [];
+  const anchors = [ST, EX];
+  for (let n = 0; n < P.keys; n++) {
+    let best = null;
+    const ds = anchors.map(([c, r]) => bfs(c, r).dist);
+    for (let r = 1; r < ROWS - 1; r++) for (let c = 0; c < COLS; c++) {
+      if (keys.some(([x, y]) => x === c && y === r)) continue;
+      const m = Math.min(...ds.map(d => d[key(c, r)]));
+      const s = m + (deg(c, r) === 1 ? 2 : 0) + R() * 0.5;
+      if (!best || s > best.s) best = { s, c, r };
+    }
+    keys.push([best.c, best.r]);
+    anchors.push([best.c, best.r]);
+  }
+  // 6. parcours de référence : départ → clé la plus proche → … → sortie
+  const route = [ST];
+  let cur = ST;
+  const left = keys.slice();
+  while (left.length) {
+    const { dist } = bfs(cur[0], cur[1]);
+    left.sort((a, b) => dist[key(a[0], a[1])] - dist[key(b[0], b[1])]);
+    const k = left.shift();
+    route.push(...pathTo(cur, k).slice(1));
+    cur = k;
+  }
+  route.push(...pathTo(cur, EX).slice(1));
+  const onRoute = new Set(route.map(([c, r]) => key(c, r)));
+  const isItem = (c, r) => keys.some(([x, y]) => x === c && y === r) || (c === ST[0] && r === ST[1]) || (c === EX[0] && r === EX[1]);
+  // 7. trappes : cellule hors parcours, dans le prolongement d'un virage du parcours
+  //    (l'élan y emmène la bille si l'on tourne trop tard)
+  const traps = [];
+  for (let i = 1; i < route.length - 1 && traps.length < P.traps * 3; i++) {
+    const [pc, pr] = route[i - 1], [c, r] = route[i], [nc, nr] = route[i + 1];
+    const dx = c - pc, dy = r - pr;
+    if (nc - c === dx && nr - r === dy) continue;                       // pas un virage
+    const tc = c + dx, tr = r + dy;
+    const d = DIRS.find(x => x[0] === dx && x[1] === dy)[2];
+    if (!inGrid(tc, tr) || !open[key(c, r)].has(d) || onRoute.has(key(tc, tr)) || isItem(tc, tr)) continue;
+    if (!traps.some(([x, y]) => x === tc && y === tr)) traps.push([tc, tr]);
+  }
+  // complément : autres poches hors parcours, reliées au parcours
+  for (const [c, r] of route) {
+    if (traps.length >= P.traps * 3) break;
+    for (const d of open[key(c, r)]) {
+      const [dx, dy] = DIRS.find(x => x[2] === d);
+      const tc = c + dx, tr = r + dy;
+      if (onRoute.has(key(tc, tr)) || isItem(tc, tr) || traps.some(([x, y]) => x === tc && y === tr)) continue;
+      traps.push([tc, tr]);
+    }
+  }
+  // garde les trappes les mieux réparties
+  const chosen = [];
+  while (chosen.length < P.traps && traps.length) {
+    let bi = 0, bs = -1;
+    traps.forEach(([c, r], i) => {
+      const s = chosen.length ? Math.min(...chosen.map(([x, y]) => Math.abs(x - c) + Math.abs(y - r))) : R();
+      if (s > bs) { bs = s; bi = i; }
+    });
+    chosen.push(traps.splice(bi, 1)[0]);
+  }
+  const trapSet = new Set(chosen.map(([c, r]) => key(c, r)));
+  // 8. balises le long du parcours (environ toutes les 9 cellules, jamais sur une trappe)
+  const checks = [];
+  for (let i = 9; i < route.length - 4; i += 9) {
+    const [c, r] = route[i];
+    if (!isItem(c, r) && !checks.some(([x, y]) => x === c && y === r)) checks.push([c, r]);
+  }
+  // 9. flèches : début d'une ligne droite d'au moins 3 cellules du parcours, dans son sens
+  const boosts = [];
+  for (let i = 0; i + 3 < route.length && boosts.length < 3; i++) {
+    const [c0, r0] = route[i], [c1, r1] = route[i + 1], [c2, r2] = route[i + 2], [c3, r3] = route[i + 3];
+    const dx = c1 - c0, dy = r1 - r0;
+    if (c2 - c1 !== dx || r2 - r1 !== dy || c3 - c2 !== dx || r3 - r2 !== dy) continue;
+    if (isItem(c1, r1) || checks.some(([x, y]) => x === c1 && y === r1)) continue;
+    if (boosts.some(b => Math.abs(b.c - c1) + Math.abs(b.r - r1) < 4)) continue;
+    boosts.push({ c: c1, r: r1, dx, dy });
+    i += 3;
+  }
+  // 10. capsules +5 s : culs-de-sac hors parcours
+  const caps = [];
+  for (let r = 0; r < ROWS && caps.length < 2; r++) for (let c = 0; c < COLS && caps.length < 2; c++) {
+    if (deg(c, r) === 1 && !onRoute.has(key(c, r)) && !trapSet.has(key(c, r)) && !isItem(c, r)) caps.push([c, r]);
+  }
+  // 11. portes laser : passages du parcours, loin du départ et des clés
+  const doors = [];
+  for (let i = 6; i < route.length - 3 && doors.length < P.doors; i += Math.max(5, Math.floor(route.length / (P.doors + 1)))) {
+    const [c, r] = route[i], [nc, nr] = route[i + 1];
+    if (isItem(c, r) || isItem(nc, nr)) continue;
+    doors.push({ c, r, d: DIRS.find(x => x[0] === nc - c && x[1] === nr - r)[2], ph: doors.length * 1.7 });
+  }
+  return { open, start: ST, exit: EX, keys, traps: chosen, checks, boosts, caps, doors, route, bfs, pathTo, key };
+}
+
+// Segments de murs fusionnés (lignes horizontales puis verticales), en coordonnées monde.
+function wallSegments(plan) {
+  const { open } = plan, { CS, X0, Y0 } = MZ;
+  const segs = [];
+  // horizontaux : bord nord de chaque rangée (r = 0 … ROWS), fusion des cellules contiguës
+  for (let r = 0; r <= ROWS; r++) {
+    let run = null;
+    for (let c = 0; c <= COLS; c++) {
+      const wall = c < COLS && (r === 0 ? true : r === ROWS ? true : !open[key(c, r)].has('n'));
+      if (wall && run === null) run = c;
+      if (!wall && run !== null) { segs.push([X0 + run * CS, Y0 + r * CS, X0 + c * CS, Y0 + r * CS]); run = null; }
+    }
+  }
+  for (let c = 0; c <= COLS; c++) {
+    let run = null;
+    for (let r = 0; r <= ROWS; r++) {
+      const wall = r < ROWS && (c === 0 ? true : c === COLS ? true : !open[key(c, r)].has('w'));
+      if (wall && run === null) run = r;
+      if (!wall && run !== null) { segs.push([X0 + c * CS, Y0 + run * CS, X0 + c * CS, Y0 + r * CS]); run = null; }
+    }
+  }
+  return segs;
+}
+
+return { MZ, cellCenter, cellOf, PLANS, planFor, buildPlan, wallSegments };
+})();
+
+// ===== src/minigames/mazeArt.js =====
+__mod['src/minigames/mazeArt.js'] = (function () {
+// Rendu du minijeu LABYRINTHE GYROSCOPIQUE (secteur CONDUITS) : conduits vus de dessus
+// (plaques de sol rivetées, murs en tuyaux chromés), trappes, balises, flèches d'accélération,
+// clés de données, capsules, portes laser, sortie, et indicateur de gravité autour de la bille
+// (flèche, lueur sur le bord du labyrinthe dans la direction de la chute, anneau du frein).
+// Géométrie partagée avec la logique (maze.js, mazeGen.js).
+const { rgba, TAU, mulberry32 } = __mod['src/util/math.js'];
+const { glowSprite } = __mod['src/render/sprites.js'];
+const { chrome, paint, hazard } = __mod['src/render/artKit.js'];
+const { MZ, wallSegments, cellCenter } = __mod['src/minigames/mazeGen.js'];
+
+const { COLS, ROWS, CS, X0, Y0 } = MZ;
+const X1 = X0 + COLS * CS, Y1 = Y0 + ROWS * CS;
+const SILVER = '#cfe0ff', GOLD = '#ffd84a', LIME = '#5dff8f', RED = '#ff3d6e', CYAN = '#29e3ff', MAG = '#ff3df2';
+const DISPLAY = '"Orbitron", "Rajdhani", sans-serif';
+
+function drawMazeStatic(g, r, mg) {
+  // machinerie autour du labyrinthe
+  g.fillStyle = '#070a12'; g.fillRect(0, 20, 600, 1090);
+  const rnd = mulberry32(73);
+  for (let k = 0; k < 40; k++) {
+    const x = rnd() < 0.5 ? rnd() * X0 : X1 + rnd() * (580 - X1), y = 30 + rnd() * 1040;
+    g.fillStyle = rgba(SILVER, 0.05 + rnd() * 0.06); g.fillRect(x, y, 3 + rnd() * 10, 1.5);
+  }
+  // plaques de sol : une par cellule, rivets aux coins, rainure centrale
+  for (let rr = 0; rr < ROWS; rr++) for (let c = 0; c < COLS; c++) {
+    const x = X0 + c * CS, y = Y0 + rr * CS;
+    const pg = g.createLinearGradient(x, y, x + CS, y + CS);
+    pg.addColorStop(0, '#1a2233'); pg.addColorStop(1, '#10151f');
+    g.fillStyle = pg; g.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+    g.strokeStyle = 'rgba(207,224,255,0.07)'; g.lineWidth = 1;
+    g.strokeRect(x + 6.5, y + 6.5, CS - 13, CS - 13);
+    for (const [px, py] of [[x + 10, y + 10], [x + CS - 10, y + 10], [x + 10, y + CS - 10], [x + CS - 10, y + CS - 10]]) {
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.beginPath(); g.arc(px + 0.6, py + 0.8, 1.6, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(207,224,255,0.25)'; g.beginPath(); g.arc(px, py, 1.3, 0, TAU); g.fill();
+    }
+  }
+  // départ : plot cerclé
+  const [sx, sy] = cellCenter(...mg.plan.start);
+  g.strokeStyle = rgba(SILVER, 0.5); g.lineWidth = 2; g.beginPath(); g.arc(sx, sy, 22, 0, TAU); g.stroke();
+  paint(g, 'DÉPART', sx, sy + 30, 6, rgba(SILVER, 0.6), { font: DISPLAY });
+  // sortie : cadre du sas
+  const [ex, ey] = cellCenter(...mg.plan.exit);
+  g.fillStyle = '#05070c'; g.beginPath(); g.arc(ex, ey, 27, 0, TAU); g.fill();
+  chrome(g, Array.from({ length: 33 }, (_, k) => [ex + Math.cos(k * TAU / 32) * 27, ey + Math.sin(k * TAU / 32) * 27]), 4, { glow: SILVER });
+  paint(g, 'SORTIE', ex, ey + 4, 7, rgba(SILVER, 0.75), { font: DISPLAY });
+  // trappes : puits sombre, liseré de danger
+  for (const T of mg.traps) {
+    g.fillStyle = 'rgba(255,61,110,0.18)'; g.beginPath(); g.arc(T.x, T.y, 22, 0, TAU); g.fill();
+    hazard(g, Array.from({ length: 24 }, (_, k) => [T.x + Math.cos(k * TAU / 24) * 21, T.y + Math.sin(k * TAU / 24) * 21]), '#ffb52e', 0.6, 5);
+    const hg = g.createRadialGradient(T.x, T.y, 2, T.x, T.y, 17);
+    hg.addColorStop(0, '#000000'); hg.addColorStop(0.75, '#04020a'); hg.addColorStop(1, '#2a1018');
+    g.fillStyle = hg; g.beginPath(); g.arc(T.x, T.y, 17, 0, TAU); g.fill();
+  }
+  // flèches d'accélération peintes au sol
+  for (const B of mg.boosts) {
+    g.save(); g.translate(B.x, B.y); g.rotate(Math.atan2(B.dy, B.dx));
+    g.strokeStyle = rgba(CYAN, 0.35); g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const o of [-14, 0, 14]) { g.beginPath(); g.moveTo(o - 6, -10); g.lineTo(o + 4, 0); g.lineTo(o - 6, 10); g.stroke(); }
+    g.restore();
+  }
+  // balises (éteintes)
+  for (const C of mg.checks) {
+    g.strokeStyle = rgba(LIME, 0.3); g.lineWidth = 2;
+    g.beginPath(); g.arc(C.x, C.y, 18, 0, TAU); g.stroke();
+    g.beginPath(); g.arc(C.x, C.y, 9, 0, TAU); g.stroke();
+  }
+  // murs : tuyaux chromés
+  for (const [ax, ay, bx, by] of wallSegments(mg.plan)) chrome(g, [[ax, ay], [bx, by]], 8, { glow: SILVER });
+  // émetteurs des portes laser
+  for (const D of mg.doors) {
+    const [ax, ay, bx, by] = D.s;
+    for (const [x, y] of [[ax, ay], [bx, by]]) { g.fillStyle = '#2a0a12'; g.beginPath(); g.arc(x, y, 5, 0, TAU); g.fill(); g.strokeStyle = RED; g.lineWidth = 1.2; g.stroke(); }
+  }
+  // inscription sur le bandeau du bas
+  paint(g, 'CONDUITS · GAINE 12', 281, Y1 + 30, 9, rgba(SILVER, 0.45), { font: DISPLAY });
+}
+
+function renderMaze(ctx, r, mg) {
+  const t = r.time;
+  // trappes scellées : grille posée par-dessus (clignote avant de s'ouvrir)
+  if (mg.sealT > 0) {
+    const a = mg.sealT < 2 ? (Math.sin(t * 16) > 0 ? 0.9 : 0.3) : 0.9;
+    for (const T of mg.traps) {
+      ctx.fillStyle = rgba('#3a4458', a); ctx.beginPath(); ctx.arc(T.x, T.y, 18, 0, TAU); ctx.fill();
+      ctx.strokeStyle = rgba(SILVER, a * 0.8); ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (const o of [-9, 0, 9]) { ctx.moveTo(T.x + o, T.y - 15); ctx.lineTo(T.x + o, T.y + 15); ctx.moveTo(T.x - 15, T.y + o); ctx.lineTo(T.x + 15, T.y + o); }
+      ctx.stroke();
+    }
+  }
+  // balises allumées
+  for (const C of mg.checks) {
+    if (!C.on && C.flash <= 0) continue;
+    r.glow(C.x, C.y, 70, LIME, 0.35 + 0.4 * C.flash);
+    ctx.strokeStyle = LIME; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(C.x, C.y, 18, 0, TAU); ctx.stroke();
+    ctx.fillStyle = rgba(LIME, 0.6); ctx.beginPath(); ctx.arc(C.x, C.y, 7, 0, TAU); ctx.fill();
+  }
+  // flèches : lueur au passage, chevrons qui défilent
+  for (const B of mg.boosts) {
+    const k = 0.3 + 0.7 * B.flash;
+    ctx.save(); ctx.translate(B.x, B.y); ctx.rotate(Math.atan2(B.dy, B.dx));
+    const off = (t * 40) % 14;
+    ctx.strokeStyle = rgba(CYAN, 0.35 + 0.5 * k); ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (const o of [-14, 0, 14]) { const x = o + off - 7; if (x > 18) continue; ctx.beginPath(); ctx.moveTo(x - 6, -9); ctx.lineTo(x + 4, 0); ctx.lineTo(x - 6, 9); ctx.stroke(); }
+    ctx.restore();
+  }
+  // capsules +5 s
+  for (const Cp of mg.caps) {
+    if (Cp.got) continue;
+    const y = Cp.y + Math.sin(t * 3 + Cp.x) * 2;
+    r.glow(Cp.x, y, 50, CYAN, 0.4);
+    ctx.fillStyle = '#0a2a36'; ctx.strokeStyle = CYAN; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(Cp.x - 14, y - 8, 28, 16, 8) : ctx.rect(Cp.x - 14, y - 8, 28, 16); ctx.fill(); ctx.stroke();
+    r.text('+5 s', Cp.x, y + 0.5, 9, '#e6fbff', 'center', 1, true);
+  }
+  // clés de données : losange doré qui tourne et flotte
+  for (const K of mg.keys) {
+    if (K.got) continue;
+    const y = K.y + Math.sin(K.t * 3 + K.i) * 3, s = Math.abs(Math.cos(K.t * 2 + K.i));
+    r.glow(K.x, y, 70, GOLD, 0.5);
+    ctx.save(); ctx.translate(K.x, y); ctx.scale(0.35 + 0.65 * s, 1);
+    ctx.fillStyle = GOLD; ctx.strokeStyle = '#fff6c8'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(10, 0); ctx.lineTo(0, 14); ctx.lineTo(-10, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7a5200'; ctx.fillRect(-3, -3, 6, 6);
+    ctx.restore();
+  }
+  // portes laser
+  for (const D of mg.doors) {
+    const [ax, ay, bx, by] = D.s;
+    if (D.closed || D.warn) {
+      const a = D.closed ? 0.85 + 0.15 * Math.sin(t * 40) : (Math.sin(t * 30) > 0 ? 0.5 : 0.1);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = rgba(RED, a); ctx.lineWidth = D.closed ? 5 : 2;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      if (D.closed) { ctx.strokeStyle = rgba('#ffffff', 0.7); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+      ctx.restore();
+      if (D.closed) r.glow((ax + bx) / 2, (ay + by) / 2, 60, RED, 0.35);
+    }
+  }
+  // sortie : grille rouge fermée, puis sas ouvert qui pulse
+  const E = mg.exit;
+  if (!E.open) {
+    ctx.strokeStyle = rgba(RED, 0.75); ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const o of [-12, 0, 12]) { ctx.moveTo(E.x + o, E.y - 20); ctx.lineTo(E.x + o, E.y + 20); }
+    ctx.stroke();
+    r.text(`${mg.keysGot}/${mg.keys.length}`, E.x, E.y + 1, 10, RED, 'center', 0.9, true);
+  } else {
+    const p = 0.5 + 0.5 * Math.sin(E.t * 5);
+    r.glow(E.x, E.y, 110, SILVER, 0.45 + 0.3 * p);
+    ctx.strokeStyle = rgba('#ffffff', 0.6 + 0.4 * p); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(E.x, E.y, 18 + 4 * p, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = rgba(CYAN, 0.7); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(E.x, E.y, 10 + 8 * ((E.t * 1.5) % 1), 0, TAU); ctx.stroke();
+  }
+}
+
+function renderMazeTop(ctx, r, mg) {
+  const t = r.time, b = mg.ball;
+  // indicateur de gravité : flèche autour de la bille et lueur sur le bord du labyrinthe
+  if (b && b.state === 'free' && !mg.winSeq) {
+    const gx = Math.sin(mg.phi), gy = Math.cos(mg.phi);
+    const col = mg.braking ? CYAN : SILVER;
+    ctx.save();
+    ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(gy, gx));
+    ctx.fillStyle = rgba(col, 0.85);
+    ctx.beginPath(); ctx.moveTo(34, 0); ctx.lineTo(24, -7); ctx.lineTo(24, 7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rgba(col, 0.35); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 21, -0.6, 0.6); ctx.stroke();
+    ctx.restore();
+    if (mg.braking) {
+      ctx.strokeStyle = rgba(CYAN, 0.6 + 0.3 * Math.sin(t * 20)); ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(b.x, b.y, 18, 0, TAU); ctx.stroke();
+    }
+    // point du bord du labyrinthe touché par la droite bille → direction de chute
+    const tx = gx > 0 ? (X1 - b.x) / gx : gx < 0 ? (X0 - b.x) / gx : Infinity;
+    const ty = gy > 0 ? (Y1 - b.y) / gy : gy < 0 ? (Y0 - b.y) / gy : Infinity;
+    const k = Math.min(tx, ty), px = b.x + gx * k, py = b.y + gy * k;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5;
+    ctx.drawImage(glowSprite(SILVER, 64), px - 60, py - 60, 120, 120);
+    ctx.restore();
+  }
+  // grande annonce
+  const C = mg.callout;
+  if (C) {
+    const u = C.t / C.life;
+    const a = u < 0.1 ? u / 0.1 : u > 0.75 ? Math.max(0, (1 - u) / 0.25) : 1;
+    const s = 1 + 0.4 * Math.max(0, 1 - C.t * 6), size = Math.round(34 * s), y = 540;
+    const j = Math.sin(t * 37) > 0.6 ? 3 : 1.5;
+    ctx.globalCompositeOperation = 'lighter';
+    r.text(C.text, 281 - j, y, size, MAG, 'center', a * 0.5, true);
+    r.text(C.text, 281 + j, y, size, CYAN, 'center', a * 0.5, true);
+    ctx.globalCompositeOperation = 'source-over';
+    r.text(C.text, 281, y, size, C.color, 'center', a, true);
+  }
+}
+
+return { drawMazeStatic, renderMaze, renderMazeTop };
+})();
+
+// ===== src/minigames/maze.js =====
+__mod['src/minigames/maze.js'] = (function () {
+const { Minigame } = __mod['src/minigames/base.js'];
+const { addLines } = __mod['src/game/lumen.js'];
+const { clamp } = __mod['src/util/math.js'];
+const { MZ, planFor, cellCenter, wallSegments } = __mod['src/minigames/mazeGen.js'];
+const { drawMazeStatic, renderMaze, renderMazeTop } = __mod['src/minigames/mazeArt.js'];
+
+// LABYRINTHE GYROSCOPIQUE — secteur CONDUITS.
+// Pas de batteurs : ← et → font tourner la gravité (rotation continue, sans retour
+// automatique) ; ← + → ensemble (ou LANCER) serrent le frein magnétique. La bille roule dans
+// les conduits : ramasser les clés de données ouvre la sortie, l'atteindre gagne.
+// - Trappes : la bille tombe et repart de la dernière balise franchie, contre 3 s.
+//   On ne peut pas perdre la bille : seul le chrono fait échouer.
+// - Flèches au sol : accélèrent la bille dans leur sens. Capsules : +5 s.
+// - Portes laser (niveau 2 et plus) : s'ouvrent et se ferment en rythme, annoncées.
+// - Paliers : chaque clé ramassée est acquise pour la tentative suivante.
+const { CS } = MZ;
+const SILVER = '#cfe0ff', GOLD = '#ffd84a', LIME = '#5dff8f', RED = '#ff3d6e', CYAN = '#29e3ff';
+const BALL_R = 13;
+const TRAP_FALL = 11;               // centre de la bille à moins de … du centre de la trappe
+const PICK = 28;                    // rayon de ramassage (clés, capsules, balises)
+const DOOR = { open: 2.6, closed: 2.0, warn: 0.5 };
+
+// Réglages par niveau
+function mazeTuning(lvl) {
+  const k = Math.max(0, lvl - 1);
+  return {
+    time: Math.max(70, [75, 80, 95][Math.min(2, k)] - 5 * Math.max(0, k - 2)),
+    G: 1150,                          // gravité (unités/s²)
+    damping: 0.9,                     // roulement (par seconde)
+    cap: 520,                         // vitesse maximale de la bille
+    w0: 3.5, w1: 8, wa: 14,           // rotation de la gravité : départ, maximum (rad/s), accélération
+  };
+}
+
+addLines({
+  enter_maze: { pri: 4, cd: 0, v: [
+    'Conduits de la station. Vous tenez la gravité : ← et → la font tourner. Les deux ensemble : frein.',
+    'Labyrinthe gyroscopique. Ramassez les clés, puis la sortie. Et regardez où vous mettez la bille.',
+  ] },
+  mazeKey: { pri: 2, cd: 0, v: ['Clé {n} sur {max}.', 'Clé de données récupérée : {n}/{max}.'] },
+  mazeAllKeys: { pri: 4, cd: 0, v: ['Toutes les clés ! La sortie est ouverte, en haut.', 'Sortie déverrouillée. Remontez au sommet.'] },
+  mazeFall: { pri: 2, cd: 4, v: ['Trappe. Retour à la dernière balise.', 'Chute. Je vous redépose à la balise, contre trois secondes.'] },
+  mazeCheck: { pri: 1, cd: 6, v: ['Balise activée : point de reprise enregistré.'] },
+  mazeKept: { pri: 3, cd: 0, v: ['Clés conservées : {n} déjà en poche.'] },
+  mazeBrake: { pri: 1, cd: 30, v: ['Astuce : les deux commandes ensemble serrent le frein magnétique.'] },
+  mazeWin: { pri: 4, cd: 0, v: ['Sortie atteinte. Les conduits sont à nous.', 'Parcours bouclé. NULL a perdu le nord. Littéralement.'] },
+  mazePerfect: { pri: 4, cd: 0, v: ['Sans une seule chute. Jackpot de rampe mérité.'] },
+  mazeDoor: { persona: 'null', pri: 2, cd: 12, v: ['PORTES LASER EN SERVICE. BONNE CHANCE.', 'MES PORTES ONT LE SENS DU RYTHME. PAS VOUS.'] },
+});
+
+class MazeGame extends Minigame {
+  constructor(game, opts) {
+    const lvl = opts.level || 1;
+    const T = mazeTuning(lvl);
+    const plan = planFor(lvl);
+    super(game, opts, {
+      gravity: 0, damping: T.damping,
+      time: T.time,
+      title: 'LABYRINTHE GYROSCOPIQUE',
+      objective: `${plan.keys.length} clés puis la sortie · ← → font tourner la gravité`,
+      music: 'maze',
+      perk: { name: 'Trappes scellées', desc: 'Les trappes sont fermées pendant 12 s' },
+    });
+    this.T = T;
+    this.plan = plan;
+    this.world.speedCap = T.cap;
+    this.phi = 0;                   // direction de la gravité (0 = vers le bas, sens horaire)
+    this.omega = 0;                 // vitesse de rotation en cours (rad/s, signée)
+    this.braking = false;
+    this.sealT = 0;
+    this.falls = 0; this.checksOn = 0; this.capsTaken = 0; this.boostsUsed = 0;
+    this.fall = null; this.winSeq = null;
+    this.callout = null;
+    this.servoT = 0;
+    this.tipT = 0;
+    const center = ([c, r]) => cellCenter(c, r);
+    this.keys = plan.keys.map((k, i) => { const [x, y] = center(k); return { i, x, y, got: false, t: 0 }; });
+    this.traps = plan.traps.map((k) => { const [x, y] = center(k); return { x, y }; });
+    this.checks = plan.checks.map((k) => { const [x, y] = center(k); return { x, y, on: false, flash: 0 }; });
+    this.boosts = plan.boosts.map((b) => { const [x, y] = cellCenter(b.c, b.r); return { x, y, dx: b.dx, dy: b.dy, cd: 0, flash: 0 }; });
+    this.caps = plan.caps.map((k) => { const [x, y] = center(k); return { x, y, got: false }; });
+    const [sx, sy] = center(plan.start), [ex, ey] = center(plan.exit);
+    this.startPos = { x: sx, y: sy };
+    this.respawn = { x: sx, y: sy };
+    this.exit = { x: ex, y: ey, open: false, t: 0 };
+    this._build();
+    // clés conservées d'une tentative précédente (jamais toutes)
+    const kept = (this.kept && Array.isArray(this.kept.keys)) ? this.kept.keys.filter(i => this.keys[i]).slice(0, this.keys.length - 1) : [];
+    for (const i of kept) this.keys[i].got = true;
+    this.keptStart = kept.length;
+    this.world.build();
+  }
+
+  get keysGot() { return this.keys.filter(k => k.got).length; }
+
+  _build() {
+    const w = this.world;
+    for (const [ax, ay, bx, by] of wallSegments(this.plan)) w.seg(ax, ay, bx, by, { mat: 'metal', e: 0.35, mu: 0.08, r: 4, style: 'none' });
+    // portes laser : segment en travers du passage, activé en rythme
+    this.doors = this.plan.doors.map((D) => {
+      const x0 = MZ.X0 + D.c * CS, y0 = MZ.Y0 + D.r * CS;
+      let s;
+      if (D.d === 'n') s = [x0 + 6, y0, x0 + CS - 6, y0];
+      else if (D.d === 's') s = [x0 + 6, y0 + CS, x0 + CS - 6, y0 + CS];
+      else if (D.d === 'e') s = [x0 + CS, y0 + 6, x0 + CS, y0 + CS - 6];
+      else s = [x0, y0 + 6, x0, y0 + CS - 6];
+      const p = w.seg(s[0], s[1], s[2], s[3], { mat: 'energy', e: 0.5, r: 3, dynamic: true, enabled: false, style: 'none' });
+      return { s, p, t: D.ph, closed: false, warn: 0, flash: 0 };
+    });
+  }
+
+  entryPoint() { return { x: this.startPos.x, y: this.startPos.y }; }
+
+  placeEntry(ball) {
+    ball.setPos(this.startPos.x, this.startPos.y);
+    ball.vx = 0; ball.vy = 0;
+  }
+
+  begin(ball) {
+    super.begin(ball);
+    if (this.keptStart > 0) this.game.later(3.6, () => { if (this.state === 'play') this.game.say('mazeKept', { n: this.keptStart }); });
+    if (this.doors.length) this.game.later(5.5, () => { if (this.state === 'play') this.game.say('mazeDoor'); });
+  }
+
+  applyPerk() { this.sealT = 12; this.perkT = 12; }
+
+  // Les murs sont fermés : la bille ne sort pas. Par sécurité, une relance (bouclier) la
+  // repose immobile à la dernière balise.
+  prepareRelaunch(ball) {
+    ball.state = 'held'; ball.vx = ball.vy = 0; ball.scale = 1;
+    ball.setPos(this.respawn.x, this.respawn.y);
+    if (!this.world.balls.includes(ball)) this.world.addBall(ball);
+    this.ball = ball;
+    this.autoRelaunch = true;
+  }
+
+  doRelaunch(b) {
+    b.state = 'free';
+    b.setPos(this.respawn.x, this.respawn.y);
+    b.vx = 0; b.vy = 0;
+  }
+
+  // ------------------------------------------------------------ boucle
+  step(dt, inp) {
+    const g = this.game, b = this.ball;
+    if (this.sealT > 0) this.sealT -= dt;
+    if (this.winSeq) { this._updateWin(dt); if (this.state === 'play') this.timeLeft = Math.min(this.timeLimit, this.timeLeft + dt); }
+    if (this.state === 'ended') return;
+    // commandes : rotation continue, frein (les deux ensemble, ou LANCER)
+    const L = !!inp.left, Rt = !!inp.right;
+    this.braking = (L && Rt) || !!inp.launch;
+    const T = this.T;
+    if (this.braking || (!L && !Rt)) this.omega = 0;
+    else {
+      const dir = Rt ? 1 : -1;
+      const w = Math.sign(this.omega) === dir ? Math.min(T.w1, Math.abs(this.omega) + T.wa * dt) : T.w0;
+      this.omega = dir * w;
+      this.phi += this.omega * dt;
+      this.servoT -= dt;
+      if (this.servoT <= 0) { g.sfx('mazeTilt', dir, Math.abs(this.omega) / T.w1); this.servoT = 0.14; }
+    }
+    if (this.braking && inp.leftPressed !== inp.rightPressed) g.sfx('mazeBrake');
+    const G = T.G * (this.braking ? 0.25 : 1);
+    this.world.gx = Math.sin(this.phi) * G;
+    this.world.gy = Math.cos(this.phi) * G;
+    this.world.damping = this.braking ? 5 : T.damping;
+    this._updateDoors(dt);
+    this.world.step(dt);
+    if (this.fall) this._updateFall(dt);
+    else if (b && b.state === 'free' && !this.winSeq) this._items(b, dt);
+    for (const B of this.boosts) { if (B.cd > 0) B.cd -= dt; B.flash = Math.max(0, B.flash - dt * 2); }
+    for (const C of this.checks) C.flash = Math.max(0, C.flash - dt * 2);
+    for (const K of this.keys) K.t += dt;
+    this.exit.t += dt;
+    if (this.callout) { this.callout.t += dt; if (this.callout.t >= this.callout.life) this.callout = null; }
+    // conseil du frein si la bille file vite longtemps
+    if (b && Math.hypot(b.vx, b.vy) > T.cap * 0.9) { this.tipT += dt; if (this.tipT > 2) { this.tipT = -30; g.say('mazeBrake'); } }
+    this.intensity = 0.6 + 0.3 * (this.keysGot / this.keys.length) + (this.exit.open ? 0.08 : 0);
+  }
+
+  _updateDoors(dt) {
+    const b = this.ball;
+    for (const D of this.doors) {
+      D.t += dt;
+      D.flash = Math.max(0, D.flash - dt * 3);
+      const P = DOOR.open + DOOR.closed, u = ((D.t % P) + P) % P;
+      const want = u >= DOOR.open;
+      D.warn = !want && u > DOOR.open - DOOR.warn ? 1 : 0;
+      if (want && !D.closed) {
+        // jamais refermée sur la bille : attend qu'elle soit passée
+        if (b && segDist(b.x, b.y, D.s) < BALL_R + 6) { D.t -= dt; continue; }
+        D.closed = true; D.flash = 1;
+        this.game.sfx('mazeDoor', 1);
+      } else if (!want && D.closed) { D.closed = false; this.game.sfx('mazeDoor', 0); }
+      D.p.enabled = D.closed;
+    }
+  }
+
+  _items(b, dt) {
+    const g = this.game;
+    const near = (o, r) => Math.hypot(b.x - o.x, b.y - o.y) < r;
+    // trappes
+    if (this.sealT <= 0) {
+      for (const T of this.traps) if (near(T, TRAP_FALL)) { this._startFall(T); return; }
+    }
+    for (const C of this.checks) {
+      if (C.on || !near(C, PICK)) continue;
+      for (const o of this.checks) if (o !== C && o === this.lastCheck) o.on = false;
+      C.on = true; C.flash = 1; this.lastCheck = C; this.checksOn++;
+      this.respawn = { x: C.x, y: C.y };
+      g.sfx('mazeCheck');
+      g.fx.ring(C.x, C.y, LIME, 50, 0.4);
+      g.fx.text(C.x, C.y - 30, 'BALISE', LIME, 0.8);
+      g.say('mazeCheck');
+    }
+    for (const K of this.keys) {
+      if (K.got || !near(K, PICK)) continue;
+      K.got = true;
+      const n = this.keysGot, max = this.keys.length;
+      g.addScore(8000 * this.level, K.x, K.y - 30, 'CLÉ');
+      g.sfx('mazeKey', n);
+      g.fx.burst(K.x, K.y, GOLD, 16, 300);
+      g.fx.ring(K.x, K.y, GOLD, 60, 0.45);
+      if (n >= max) this._openExit();
+      else {
+        g.say('mazeKey', { n, max });
+        this.callout = { text: `CLÉ ${n}/${max}`, color: GOLD, t: 0, life: 1.1 };
+      }
+    }
+    for (const Cp of this.caps) {
+      if (Cp.got || !near(Cp, PICK)) continue;
+      Cp.got = true; this.capsTaken++;
+      this.timeLeft = Math.min(this.timeLimit + 30, this.timeLeft + 5);
+      g.sfx('mazeCapsule');
+      g.fx.text(Cp.x, Cp.y - 30, '+5 s', CYAN, 1.1);
+      g.fx.burst(Cp.x, Cp.y, CYAN, 12, 260);
+    }
+    for (const B of this.boosts) {
+      if (B.cd > 0 || !near(B, 24)) continue;
+      const along = b.vx * B.dx + b.vy * B.dy, want = this.T.cap * 0.9;
+      if (along < want) { b.vx += (want - along) * B.dx; b.vy += (want - along) * B.dy; }
+      B.cd = 0.8; B.flash = 1; this.boostsUsed++;
+      g.sfx('mazeBoost');
+    }
+    if (this.exit.open && near(this.exit, 26)) this._startWin(b);
+  }
+
+  _openExit() {
+    const g = this.game;
+    this.exit.open = true; this.exit.t = 0;
+    g.sfx('mazeExitOpen');
+    g.say('mazeAllKeys');
+    g.banner('SORTIE OUVERTE', 'Remontez au sommet du labyrinthe', SILVER, 1.8);
+    g.dmd('banner', { title: 'SORTIE OUVERTE', sub: 'Toutes les clés', color: SILVER });
+    this.callout = { text: 'SORTIE OUVERTE', color: SILVER, t: 0, life: 1.6 };
+    if (g.renderer && g.renderer.pulse) g.renderer.pulse(SILVER, 1);
+  }
+
+  // ------------------------------------------------------------ chute et reprise
+  _startFall(T) {
+    const g = this.game, b = this.ball;
+    this.falls++;
+    b.state = 'captured';
+    this.fall = { t: 0, x: T.x, y: T.y, sx: b.x, sy: b.y };
+    this.timeLeft = Math.max(0.5, this.timeLeft - 3);
+    g.sfx('mazeFall');
+    g.fx.text(T.x, T.y - 32, '−3 s', RED, 1);
+    g.fx.shake(3);
+    g.say('mazeFall');
+  }
+
+  _updateFall(dt) {
+    const F = this.fall, b = this.ball;
+    F.t += dt;
+    const u = Math.min(1, F.t / 0.45);
+    b.x = F.sx + (F.x - F.sx) * u; b.y = F.sy + (F.y - F.sy) * u;
+    b.px = b.x; b.py = b.y;
+    b.scale = Math.max(0, 1 - u);
+    if (F.t < 0.75) return;
+    // rematérialisée à la dernière balise, immobile
+    b.setPos(this.respawn.x, this.respawn.y);
+    b.vx = 0; b.vy = 0; b.scale = 1; b.state = 'free';
+    this.fall = null;
+    this.game.sfx('mazeRespawn');
+    this.game.fx.ring(this.respawn.x, this.respawn.y, LIME, 44, 0.4);
+  }
+
+  // ------------------------------------------------------------ victoire
+  _startWin(b) {
+    const g = this.game;
+    b.state = 'captured';
+    this.winSeq = { t: 0, sx: b.x, sy: b.y, done: false };
+    g.sfx('mazeWin');
+    g.say(this.falls === 0 ? 'mazePerfect' : 'mazeWin');
+    g.fx.flash(SILVER, 0.3);
+    g.slowT = Math.max(g.slowT, 0.5);
+    this.callout = { text: this.falls === 0 ? 'PARCOURS PARFAIT' : 'SORTIE !', color: this.falls === 0 ? GOLD : SILVER, t: 0, life: 1.8 };
+    if (g.renderer && g.renderer.pulse) g.renderer.pulse(SILVER, 1.3);
+  }
+
+  _updateWin(dt) {
+    const W = this.winSeq, b = this.ball;
+    W.t += dt;
+    const u = Math.min(1, W.t / 0.5);
+    b.x = W.sx + (this.exit.x - W.sx) * u; b.y = W.sy + (this.exit.y - W.sy) * u;
+    b.px = b.x; b.py = b.y;
+    b.scale = Math.max(0.15, 1 - u * 0.85);
+    if (W.t >= 1.3 && !W.done) { W.done = true; b.scale = 1; this.finish(true, 'exit'); }
+  }
+
+  onTimeout() {
+    if (this.winSeq) { this.timeLeft = 0.02; return; }
+    super.onTimeout();
+  }
+
+  // ------------------------------------------------------------ fin et progression
+  keepProgress() { return { keys: this.keys.filter(k => k.got).map(k => k.i).slice(0, this.keys.length - 1) }; }
+
+  results(success) {
+    const rewards = [{ type: 'shield' }, { type: 'magnet' }];
+    if (this.falls === 0) rewards.push({ type: 'rampJackpot' });
+    return {
+      rewards: success ? rewards : [],
+      points: success ? (35000 + Math.round(this.timeLeft) * 1000) * this.level : 0,
+    };
+  }
+
+  progressText() {
+    const ex = this.exit.open ? ' · SORTIE OUVERTE' : '';
+    const fl = this.falls ? ` · chutes ${this.falls}` : '';
+    return `Clés ${this.keysGot}/${this.keys.length}${ex}${fl}`;
+  }
+
+  debugWin() { for (const K of this.keys) K.got = true; this.finish(true, 'debug'); }
+  debugLoseBall() { this.timeLeft = 0.01; }
+
+  // ------------------------------------------------------------ rendu
+  drawStatic(g, r) { drawMazeStatic(g, r, this); }
+  render(ctx, r) { renderMaze(ctx, r, this); }
+  renderTop(ctx, r) { renderMazeTop(ctx, r, this); }
+}
+
+function segDist(px, py, s) {
+  const [ax, ay, bx, by] = s, dx = bx - ax, dy = by - ay;
+  const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy), 0, 1);
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+return { mazeTuning, MazeGame };
+})();
+
 // ===== src/minigames/duel.js =====
 __mod['src/minigames/duel.js'] = (function () {
 const { FlipperArena } = __mod['src/minigames/arena.js'];
@@ -24660,11 +25545,12 @@ const { DefenseGame } = __mod['src/minigames/defense.js'];
 const { VaultGame } = __mod['src/minigames/vault.js'];
 const { CyberballGame } = __mod['src/minigames/cyberball.js'];
 const { BugsGame } = __mod['src/minigames/bugs.js'];
+const { MazeGame } = __mod['src/minigames/maze.js'];
 const { DuelGame } = __mod['src/minigames/duel.js'];
 const { Scores } = __mod['src/util/storage.js'];
 
 const MINIGAMES = {
-  hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame,
+  hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame, maze: MazeGame,
   defense: DefenseGame, vault: VaultGame, arena: CyberballGame, bugs: BugsGame, core: DuelGame,
 };
 

@@ -165,7 +165,7 @@ for (let seed = 0; seed < 3; seed++) {
 
 // ------------------------------------------------------------------ 4. minijeux : chute, bouclier, réussite
 log('\n[4] Minijeux : continuité de la bille, chute = retour au plateau sans perte');
-for (const sector of (process.env.LN_SECTORS || 'hangar,reactor,tag,defense,vault,arena,core').split(',')) {
+for (const sector of (process.env.LN_SECTORS || 'hangar,reactor,tag,maze,defense,vault,arena,bugs,core').split(',')) {
   log(`  — ${sector}`);
   const { g } = makeGame();
   g.newGame();
@@ -552,8 +552,10 @@ log('\n[11] Barillets, aimant de l\'œil, vie au million, FURIE, surchauffe des 
     check(!g.canStartMinigame() && t.minigamesOnHold(), 'minijeux en attente pendant la FURIE');
     // pas de sauvegarde pendant la FURIE
     g.bonus.saveT = 5;
-    const before = t.ballsInPlay();
     const victim = t.world.balls.find(b => b.state === 'free');
+    // les autres billes, posées au milieu du plateau : aucune ne s'écoule pendant la mesure
+    for (const bb of t.world.balls) if (bb !== victim && bb.state === 'free') { bb.setPos(180 + Math.random() * 200, 330 + Math.random() * 60); bb.vx = 0; bb.vy = 0; }
+    const before = t.ballsInPlay();
     victim.setPos(281, T.drainY + 5); victim.vy = 300;
     run(g, 0.05);
     check(t.ballsInPlay() === before - 1 && t.launchQueue.length === 0, 'bille perdue pendant la FURIE : pas de réinjection');

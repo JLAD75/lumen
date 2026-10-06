@@ -13,11 +13,12 @@ import { DefenseGame } from '../minigames/defense.js';
 import { VaultGame } from '../minigames/vault.js';
 import { CyberballGame } from '../minigames/cyberball.js';
 import { BugsGame } from '../minigames/bugs.js';
+import { MazeGame } from '../minigames/maze.js';
 import { DuelGame } from '../minigames/duel.js';
 import { Scores } from '../util/storage.js';
 
 const MINIGAMES = {
-  hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame,
+  hangar: BreakoutGame, reactor: SingularityGame, tag: GraffitiGame, maze: MazeGame,
   defense: DefenseGame, vault: VaultGame, arena: CyberballGame, bugs: BugsGame, core: DuelGame,
 };
 

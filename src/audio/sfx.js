@@ -8,6 +8,7 @@ import { SFX_GRAFFITI } from './sfx-graffiti.js';
 import { SFX_VAULT } from './sfx-vault.js';
 import { SFX_CYBERBALL } from './sfx-cyberball.js';
 import { SFX_BUGS } from './sfx-bugs.js';
+import { SFX_MAZE } from './sfx-maze.js';
 
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -710,4 +711,4 @@ export const SFX = {
 };
 
 // sons des minijeux définis dans leurs propres modules
-Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL, SFX_BUGS);
+Object.assign(SFX, SFX_DEFENSE, SFX_BREAKOUT, SFX_SINGULARITY, SFX_GRAFFITI, SFX_VAULT, SFX_CYBERBALL, SFX_BUGS, SFX_MAZE);
