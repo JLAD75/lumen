@@ -10610,6 +10610,8 @@ __mod['src/audio/voice.js'] = (function () {
 // « brrip » de modulation de fréquence, puis d'un creux de volume. Une réplique est une suite
 // de « mots » de droïde, tirée de son texte (la même réplique sonne toujours pareil) :
 // babil (hauteurs tenues), douiit (glissé montant), bwoo (glissé descendant), trille, bip.
+// LUMEN pépie en sinus dans l'aigu (R2-D2) ; NULL, ordinateur hostile des années 80, babille en
+// onde carrée à pas réguliers, sa mélodie descend et il finit par une mise hors tension.
 // Coût : une seule voix par réplique, 4 à 6 nœuds ; rien si la voix est coupée.
 
 const { mulberry32 } = __mod['src/util/math.js'];
@@ -10627,8 +10629,8 @@ function hash(s) {
 const VOICE_STYLES = {
   lumen: { lo: 1300, hi: 2700, step: [0.055, 0.09], wave: 'sine', lp: 0, ring: null, fm: 70, level: 0.12,
     words: { burble: 0.45, dweet: 0.15, bwoo: 0.08, trill: 0.17, blip: 0.15 } },
-  null: { lo: 210, hi: 640, step: [0.08, 0.12], wave: 'square', lp: 1500, ring: [42, 0.5], fm: 45, level: 0.29,
-    words: { burble: 0.55, dweet: 0.05, bwoo: 0.2, trill: 0.1, blip: 0.1 } },
+  null: { lo: 420, hi: 1100, step: [0.075, 0.075], wave: 'square', lp: 2200, ring: null, fm: 50, regular: true, fall: true, level: 0.123,
+    words: { burble: 0.65, dweet: 0, bwoo: 0.2, trill: 0.05, blip: 0.1 } },
 };
 
 function pick(R, weights) {
