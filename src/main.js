@@ -109,6 +109,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => rend
 let last = performance.now();
 const debug = /[?&]debug/.test(location.search);
 let fpsEl = null;
+let idleFrame = 0;
 if (debug) {
   fpsEl = document.createElement('div');
   fpsEl.style.cssText = 'position:fixed;left:4px;bottom:4px;z-index:50;font:12px monospace;color:#0f0;background:rgba(0,0,0,0.6);padding:2px 5px;pointer-events:none';
@@ -118,7 +119,11 @@ function loop(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;
   if (!window.__LN || !window.__LN.hold) game.frame(dt);   // __LN.hold : pilotage manuel (tests)
-  game.render();
+  // Fin de session, cinématique passée : le plateau éteint, sous le voile, ne bouge presque
+  // plus. Une image sur quatre suffit, le reste du temps va au rapport et à la saisie.
+  const idle = game.state === 'over' && ui.over.active && ui.over.phase !== 'cine';
+  renderer.idle = idle;
+  if (!idle || ++idleFrame % 4 === 0) game.render();
   ui.update(game, Math.min(dt, 0.1));
   if (fpsEl) {
     const w = game.scene === 'minigame' && game.minigame ? game.minigame.world : game.table.world;

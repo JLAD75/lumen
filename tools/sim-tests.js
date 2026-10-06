@@ -592,6 +592,8 @@ log('\n[11] Barillets, aimant de l\'œil, vie au million, FURIE, surchauffe des 
     check(!!g.frenzy, 'FURIE lancée');
     const free = t.world.balls.filter(b => b.state === 'free');
     for (const b of free.slice(0, free.length - (RULES.frenzyKeep - 1))) t.world.removeBall(b);
+    // billes restantes posées au milieu du plateau : aucune ne doit s'écouler pendant la mesure
+    for (const b of free.slice(free.length - (RULES.frenzyKeep - 1))) { b.setPos(180 + Math.random() * 200, 320 + Math.random() * 80); b.vx = 0; b.vy = 0; }
     run(g, 0.1);
     check(!g.frenzy && g.maxBalls === RULES.startBalls && events.some(e => e.startsWith('banner:FURIE PERDUE')), 'moins de 6 billes : FURIE perdue, réserve inchangée');
     check(t.multiball && t.ballsInPlay() === RULES.frenzyKeep - 1, 'les billes restantes continuent en multibille');

@@ -659,3 +659,17 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
 #app.rfx .go-sig.glx::before, #app.rfx .go-sig.glx::after, #app.rfx .go-title.glx::before, #app.rfx .go-title.glx::after, #app.rfx .go-tear, #app.rfx .go-rank.rec::before { display: none; }
 #app.rfx .go-flash.on { animation-name: goFlashSoft; }
 #app.rm .go-signal.on .go-sig2 { opacity: 1; }
+
+/* Écran tactile : les lueurs « qui respirent » animent des ombres portées, repeintes à
+   chaque image (rien n'est confié au compositeur). Sur un GPU de téléphone, ces boucles
+   infinies faisaient tomber la fin de session vers 10 fps : elles restent allumées, fixes. */
+@media (pointer: coarse) {
+  .go-head.on .go-title { animation: goNeon 1.5s 0.6s both; }
+  .go-fast .go-head.on .go-title { animation: none; }
+  .go-rank.on.rec .rm1 { animation: goStamp 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+  .go-slot.cur { animation: none; box-shadow: 0 0 24px rgba(41,227,255,0.75), inset 0 0 18px rgba(41,227,255,0.28); }
+  .go-slot.cur.up { animation: goFlipUp 0.16s ease-out; }
+  .go-slot.cur.dn { animation: goFlipDn 0.16s ease-out; }
+  .go-entry.ready .go-key.ok { animation: none; box-shadow: 0 0 22px rgba(255,216,74,0.7); background: rgba(255,216,74,0.26); color: #fff; }
+  .lb.on .lb-row.me, .lb.on .lb-row.you { animation: goRow 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(0.3s + var(--i) * 85ms) both; box-shadow: 0 0 16px rgba(255,61,242,0.7); }
+}

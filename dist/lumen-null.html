@@ -676,6 +676,20 @@ canvas.dmd { display: block; flex: none; background: #000; border-radius: 4px; b
 #app.rfx .go-flash.on { animation-name: goFlashSoft; }
 #app.rm .go-signal.on .go-sig2 { opacity: 1; }
 
+/* Écran tactile : les lueurs « qui respirent » animent des ombres portées, repeintes à
+   chaque image (rien n'est confié au compositeur). Sur un GPU de téléphone, ces boucles
+   infinies faisaient tomber la fin de session vers 10 fps : elles restent allumées, fixes. */
+@media (pointer: coarse) {
+  .go-head.on .go-title { animation: goNeon 1.5s 0.6s both; }
+  .go-fast .go-head.on .go-title { animation: none; }
+  .go-rank.on.rec .rm1 { animation: goStamp 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+  .go-slot.cur { animation: none; box-shadow: 0 0 24px rgba(41,227,255,0.75), inset 0 0 18px rgba(41,227,255,0.28); }
+  .go-slot.cur.up { animation: goFlipUp 0.16s ease-out; }
+  .go-slot.cur.dn { animation: goFlipDn 0.16s ease-out; }
+  .go-entry.ready .go-key.ok { animation: none; box-shadow: 0 0 22px rgba(255,216,74,0.7); background: rgba(255,216,74,0.26); color: #fff; }
+  .lb.on .lb-row.me, .lb.on .lb-row.you { animation: goRow 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(0.3s + var(--i) * 85ms) both; box-shadow: 0 0 16px rgba(255,61,242,0.7); }
+}
+
 </style>
 </head>
 <body>
@@ -6442,7 +6456,7 @@ class PostFX {
     dt = Math.min(0.1, Math.max(0, dt || 0));
     if (canvas.width !== this.cw || canvas.height !== this.ch) this.resize(canvas.width / this.dpr, canvas.height / this.dpr, this.dpr);
     this.t += dt;
-    this._auto(dt);
+    if (!(info && info.noAuto)) this._auto(dt);
     const st = this.settings, rfx = !!st.reducedFx, rm = !!st.reducedMotion;
     const mood = (info && info.mood) || 'calm';
     const inten = Math.max(0, Math.min(1, (info && info.intensity) || 0));
@@ -8045,8 +8059,11 @@ class Renderer {
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
     this.time += dt;
-    this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
-    this._autoDpr(dt);
+    // rendu volontairement ralenti (this.idle) : ne pas en conclure que l'appareil peine
+    if (!this.idle) {
+      this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
+      this._autoDpr(dt);
+    }
     const ctx = this.ctx;
     if (this.shut) { if (game.state === 'over') this._shutStep(dt); else this.powerOn(); }
     this._mood(game);
@@ -8105,7 +8122,7 @@ class Renderer {
     const fps = this.fpsAvg;
     this.post.setFps(fps);
     const v = this.view, d = this.dpr;
-    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content', clip: { x: v.x * d, y: v.y * d, w: v.w * d, h: v.h * d } });
+    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content', noAuto: !!this.idle, clip: { x: v.x * d, y: v.y * d, w: v.w * d, h: v.h * d } });
     // calque écran (HTML) : flash, fondu, bords néon selon l'ambiance, cadre des impulsions
     if (this.ov) {
       this._overlay(dt, tv);
@@ -13066,7 +13083,7 @@ class GameOverSeq {
     const R = this.e.rank.getBoundingClientRect();
     if (i % 2 === 0 && R.width > 0) { x = R.left + R.width * (0.15 + Math.random() * 0.7); y = R.top - 10 - Math.random() * Math.min(140, H * 0.2); }
     else { x = W * (0.12 + Math.random() * 0.76); y = H * (0.1 + Math.random() * 0.4); }
-    const k = this.settings.reducedFx ? 0.35 : 1, n = Math.round(34 * k), sz = Math.min(W, H) * (0.2 + Math.random() * 0.1);
+    const k = this.settings.reducedFx ? 0.35 : this.touch ? 0.5 : 1, n = Math.round(34 * k), sz = Math.min(W, H) * (0.2 + Math.random() * 0.1);
     let h = '<b class="core"></b>';
     for (let j = 0; j < n; j++) {
       const a = (j / n) * Math.PI * 2 + Math.random() * 0.3, d = sz * (0.55 + Math.random() * 0.45);
@@ -24479,6 +24496,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => rend
 let last = performance.now();
 const debug = /[?&]debug/.test(location.search);
 let fpsEl = null;
+let idleFrame = 0;
 if (debug) {
   fpsEl = document.createElement('div');
   fpsEl.style.cssText = 'position:fixed;left:4px;bottom:4px;z-index:50;font:12px monospace;color:#0f0;background:rgba(0,0,0,0.6);padding:2px 5px;pointer-events:none';
@@ -24488,7 +24506,11 @@ function loop(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;
   if (!window.__LN || !window.__LN.hold) game.frame(dt);   // __LN.hold : pilotage manuel (tests)
-  game.render();
+  // Fin de session, cinématique passée : le plateau éteint, sous le voile, ne bouge presque
+  // plus. Une image sur quatre suffit, le reste du temps va au rapport et à la saisie.
+  const idle = game.state === 'over' && ui.over.active && ui.over.phase !== 'cine';
+  renderer.idle = idle;
+  if (!idle || ++idleFrame % 4 === 0) game.render();
   ui.update(game, Math.min(dt, 0.1));
   if (fpsEl) {
     const w = game.scene === 'minigame' && game.minigame ? game.minigame.world : game.table.world;

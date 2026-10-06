@@ -531,7 +531,7 @@ export class GameOverSeq {
     const R = this.e.rank.getBoundingClientRect();
     if (i % 2 === 0 && R.width > 0) { x = R.left + R.width * (0.15 + Math.random() * 0.7); y = R.top - 10 - Math.random() * Math.min(140, H * 0.2); }
     else { x = W * (0.12 + Math.random() * 0.76); y = H * (0.1 + Math.random() * 0.4); }
-    const k = this.settings.reducedFx ? 0.35 : 1, n = Math.round(34 * k), sz = Math.min(W, H) * (0.2 + Math.random() * 0.1);
+    const k = this.settings.reducedFx ? 0.35 : this.touch ? 0.5 : 1, n = Math.round(34 * k), sz = Math.min(W, H) * (0.2 + Math.random() * 0.1);
     let h = '<b class="core"></b>';
     for (let j = 0; j < n; j++) {
       const a = (j / n) * Math.PI * 2 + Math.random() * 0.3, d = sz * (0.55 + Math.random() * 0.45);

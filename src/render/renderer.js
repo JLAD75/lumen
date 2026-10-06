@@ -258,8 +258,11 @@ export class Renderer {
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
     this.time += dt;
-    this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
-    this._autoDpr(dt);
+    // rendu volontairement ralenti (this.idle) : ne pas en conclure que l'appareil peine
+    if (!this.idle) {
+      this.fpsAvg = this.fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
+      this._autoDpr(dt);
+    }
     const ctx = this.ctx;
     if (this.shut) { if (game.state === 'over') this._shutStep(dt); else this.powerOn(); }
     this._mood(game);
@@ -318,7 +321,7 @@ export class Renderer {
     const fps = this.fpsAvg;
     this.post.setFps(fps);
     const v = this.view, d = this.dpr;
-    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content', clip: { x: v.x * d, y: v.y * d, w: v.w * d, h: v.h * d } });
+    this.post.apply(ctx, this.canvas, dt, { ...info, part: 'content', noAuto: !!this.idle, clip: { x: v.x * d, y: v.y * d, w: v.w * d, h: v.h * d } });
     // calque écran (HTML) : flash, fondu, bords néon selon l'ambiance, cadre des impulsions
     if (this.ov) {
       this._overlay(dt, tv);

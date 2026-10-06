@@ -108,7 +108,7 @@ export class PostFX {
     dt = Math.min(0.1, Math.max(0, dt || 0));
     if (canvas.width !== this.cw || canvas.height !== this.ch) this.resize(canvas.width / this.dpr, canvas.height / this.dpr, this.dpr);
     this.t += dt;
-    this._auto(dt);
+    if (!(info && info.noAuto)) this._auto(dt);
     const st = this.settings, rfx = !!st.reducedFx, rm = !!st.reducedMotion;
     const mood = (info && info.mood) || 'calm';
     const inten = Math.max(0, Math.min(1, (info && info.intensity) || 0));
