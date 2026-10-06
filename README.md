@@ -222,7 +222,7 @@ tools/dev/                 démonstrations isolées de l'afficheur et des effets
 - **Montées sonores** pour les combos, signatures distinctes pour les portails, bonus, jackpots et pertes de bille ; sons dédiés du casse‑briques (laser, éclats, murs) et de la défense (tourelles, salve, canon orbital).
 - **Bande‑son enregistrée** (`assets/music/*.mp3`) : un morceau par moment du jeu (accueil, plateau, multibille, chaque minijeu, fin de partie), lu en flux sur deux platines qui alternent pour des fondus enchaînés. Le morceau du plateau reprend où il s'était arrêté, les volumes sont égalisés, et l'ambiance de la station se tait pendant ces morceaux.
 - **Musique électronique adaptative** (repli si un morceau manque) : 10 modes avec chacun son tempo et sa tonalité. Des couches s'activent selon l'intensité (combos, multibille), la tension (dernière bille, chrono) ajoute des éléments, et le tempo augmente avec le niveau.
-- **Voix robotique de LUMEN** (formants modulés) et **voix saturée de NULL**. La musique baisse pendant qu'elles parlent.
+- **Signatures de droïde** à chaque réplique, tirées de son texte (la même réplique sonne toujours pareil) : sifflets, trilles et « boups » pour LUMEN (façon R2-D2 / BB-8), grognements saturés et sauts de fréquence pour NULL. Quelques nœuds par note, rien si la voix est coupée.
 - **Réglages** : volumes séparés et mode muet, sauvegardés localement.
 
 ---
